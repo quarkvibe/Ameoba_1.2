@@ -1,0 +1,489 @@
+# Amoeba - Intelligent Email Microservice with Control Dashboard
+
+## Core Vision
+
+A self-contained email utility with an intelligent agent and a sleek dashboard. Deploy it, access the dashboard, and control everything through a beautiful interface or natural language. One service, total control, zero complexity.
+
+## The Amoeba Dashboard
+
+### Dashboard Philosophy
+
+**Single pane of glass** - Everything visible, everything editable, everything intelligent.
+
+- **Live View**: See what’s happening in real-time
+- **Quick Actions**: One-click common operations
+- **Agent Chat**: Talk to the agent directly
+- **Visual Config**: Edit any setting with instant preview
+- **Health Matrix**: System status at a glance
+
+### Dashboard Layout
+
+#### 1. Command Center (Main View)
+
+**Top Bar - Agent Interface**:
+
+- Chat input: “Ask me anything or give me a command…”
+- Agent status indicator (thinking, executing, idle)
+- Quick command buttons (Send Now, Pause All, Generate Report)
+- Global search across all data
+
+**Left Sidebar - Navigation**:
+
+- **Overview** - Real-time metrics dashboard
+- **Campaigns** - Active email campaigns
+- **Configuration** - All settings in one place
+- **Queue Monitor** - Live queue status
+- **Analytics** - Engagement metrics
+- **Logs** - Searchable activity stream
+- **Agent Brain** - What the agent has learned
+
+**Main Canvas - Dynamic Content**:
+Changes based on selection, always showing:
+
+- Current status/data
+- Quick edit capabilities
+- Agent suggestions
+- Action buttons
+
+#### 2. Overview Dashboard
+
+**Real-Time Metrics Grid**:
+
+```
+┌─────────────────┬─────────────────┬─────────────────┐
+│ Emails Today    │ Delivery Rate   │ Active Users    │
+│ 12,847         │ 98.7%          │ 3,421          │
+├─────────────────┼─────────────────┼─────────────────┤
+│ Queue Depth     │ Avg Send Time   │ Agent Health    │
+│ 234            │ 1.2s           │ Optimal        │
+└─────────────────┴─────────────────┴─────────────────┘
+```
+
+**Live Activity Feed**:
+
+- Scrolling log of recent operations
+- Color-coded by type (success, warning, error)
+- Click any item for details
+- Agent annotations on important events
+
+**Quick Stats**:
+
+- Hourly send graph
+- Provider status (SendGrid: ✓, SES: ✓)
+- Database connection: Connected
+- Redis status: 42ms latency
+- Next scheduled job: 5:00 AM
+
+#### 3. Configuration Center
+
+**Visual Configuration Editor**:
+
+**Connection Settings** (Collapsible Cards):
+
+- **Database Card**:
+  - Visual connection string builder
+  - Test connection button
+  - Auto-detect schema option
+  - Table mapping interface
+  - Connection pool settings slider
+- **Email Provider Card**:
+  - Provider selector dropdown
+  - API key input with validation
+  - Test send button
+  - Fallback provider chain
+  - Rate limit configuration
+- **Redis/Queue Card**:
+  - Connection string or “Use In-Memory”
+  - Queue visualization
+  - Worker count slider
+  - Retry policy builder
+- **AI/Agent Card**:
+  - Model selection (GPT-4, Claude, etc.)
+  - Personality slider (Formal ↔ Casual)
+  - Autonomy level (Manual ↔ Fully Autonomous)
+  - Learning rate adjustment
+  - Knowledge base editor
+
+**Visual Schedule Builder**:
+
+- Drag-and-drop calendar interface
+- Natural language input: “Every weekday at 9 AM”
+- Visual cron expression builder
+- Timezone selector with world map
+- Preview next 10 run times
+
+**Template Studio**:
+
+- Live email template editor
+- Drag-and-drop blocks
+- Variable insertion helper
+- Mobile/desktop preview toggle
+- A/B test variant creator
+- Agent suggestion panel
+
+#### 4. Campaign Manager
+
+**Campaign Grid View**:
+
+```
+┌──────────────────────────────────────────────────┐
+│ 📧 Daily Horoscopes                              │
+│ Status: Active | Next Run: 5:00 AM              │
+│ Recipients: 3,421 | Delivered Today: 3,398      │
+│ [Pause] [Edit] [Send Now] [View Analytics]      │
+├──────────────────────────────────────────────────┤
+│ 🎉 Welcome Series                               │
+│ Status: Active | Trigger: New User Signup       │
+│ In Series: 47 users | Completion Rate: 78%      │
+│ [Pause] [Edit] [Preview] [View Flow]            │
+└──────────────────────────────────────────────────┘
+```
+
+**Campaign Creator**:
+
+- Visual flow builder
+- Condition nodes (if user did X, then Y)
+- Time delay nodes
+- Content blocks
+- Agent auto-complete suggestions
+
+#### 5. Queue Monitor
+
+**Live Queue Visualization**:
+
+```
+Email Queue    [████████░░░░░░░] 234/500
+Processing     [████████████░░░] 12/15 workers active
+
+Recent Jobs:
+✓ user@email.com - Delivered (0.8s)
+✓ another@email.com - Delivered (1.1s)
+⟳ retry@email.com - Retrying (attempt 2/3)
+✗ bounce@email.com - Failed (invalid email)
+```
+
+**Queue Controls**:
+
+- Pause/Resume processing
+- Clear queue button
+- Retry all failed
+- Priority adjustment
+- Worker scaling slider
+
+#### 6. Analytics Dashboard
+
+**Engagement Metrics**:
+
+- Open rate timeline graph
+- Click-through heat map
+- Best performing content
+- Optimal send time analysis
+- User engagement scoring
+
+**Deliverability Health**:
+
+- Bounce rate trends
+- Spam score monitoring
+- Provider reputation
+- Domain health status
+- Blacklist monitoring
+
+#### 7. Agent Brain Interface
+
+**What the Agent Knows**:
+
+```
+Domain Understanding: E-commerce/Astrology Hybrid
+Learned Patterns:
+- Users engage most at 7-9 AM local time
+- Tuesdays have 23% higher open rates
+- Subject lines with emojis: +12% opens
+- Premium users prefer detailed content
+
+Optimizations Applied:
+- Shifted send times by timezone
+- Increased personalization for top users
+- Reduced image size for mobile users
+
+Suggestions:
+- Consider weekly digest for low-engagement users
+- Test shorter subject lines
+- Add social proof to templates
+```
+
+**Agent Training Panel**:
+
+- Upload sample content
+- Define brand voice
+- Set business rules
+- Review agent decisions
+- Override automation
+
+### Interactive Features
+
+#### 1. Agent Chat Interface
+
+**Omnipresent Chat Bar**:
+Always visible at top of dashboard:
+
+```
+Agent: "How can I help optimize your email operations?"
+You: "Why did the delivery rate drop yesterday?"
+Agent: "I detected 3 factors: 1) ISP throttling from Gmail..."
+```
+
+**Agent Capabilities via Chat**:
+
+- “Show me all failed emails to gmail addresses”
+- “Create a new campaign for black friday”
+- “Optimize send times for European users”
+- “Generate a report for last month”
+- “Fix the connection to the database”
+- “Test the email template with my address”
+
+#### 2. Quick Action Buttons
+
+**Floating Action Menu**:
+
+- **Send Test**: Quick test to your email
+- **Pause All**: Emergency stop
+- **Generate Report**: Instant PDF
+- **Export Data**: Download CSVs
+- **Agent Help**: Context-aware assistance
+
+#### 3. Visual Config Editor
+
+**No-Code Configuration**:
+
+- Color pickers for templates
+- Sliders for rate limits
+- Dropdowns for providers
+- Toggle switches for features
+- Visual cron builders
+- Drag-and-drop workflows
+
+#### 4. Live Preview System
+
+**Instant Feedback**:
+
+- Template changes preview in real-time
+- Configuration validation as you type
+- Send time preview with timezone overlay
+- Queue simulation before processing
+- Cost calculator for volume changes
+
+### Smart Dashboard Features
+
+#### 1. Contextual Intelligence
+
+**Agent Provides Context**:
+
+- Hover over any metric for explanation
+- Red dot notifications for attention needed
+- Green highlights for optimizations
+- Suggestion bubbles for improvements
+
+#### 2. One-Click Fixes
+
+**Agent-Powered Solutions**:
+
+- “Fix Database Connection” button
+- “Optimize Queue” button
+- “Improve Delivery Rate” button
+- “Reduce Costs” button
+- Each runs agent diagnostic and fix
+
+#### 3. Visual Debugging
+
+**See Everything**:
+
+- Email journey visualization
+- Connection status indicators
+- Queue flow animation
+- Error trace visualization
+- Performance bottleneck highlighting
+
+#### 4. Collaborative Control
+
+**Team Features**:
+
+- Role-based access (Admin, Editor, Viewer)
+- Change history with rollback
+- Comments on configurations
+- Shared agent conversations
+- Audit log of all changes
+
+### Dashboard Access & Security
+
+#### Authentication
+
+**Simple but Secure**:
+
+- Single admin password on first run
+- Optional OAuth integration
+- API key for programmatic access
+- IP whitelist option
+- Session management
+
+#### Security Features
+
+- All sensitive data masked by default
+- Click to reveal passwords/keys
+- Automatic logout after inactivity
+- Encryption for stored credentials
+- Agent never shows sensitive data in chat
+
+### Mobile Dashboard
+
+**Responsive Design**:
+
+- Full functionality on mobile
+- Touch-optimized controls
+- Swipe navigation
+- Critical alerts via push
+- Quick actions widget
+
+### Dashboard API
+
+**Everything is Also API**:
+
+```
+GET /dashboard/config - Get all configuration
+PUT /dashboard/config - Update configuration
+POST /dashboard/agent/ask - Query the agent
+GET /dashboard/metrics - Get current metrics
+POST /dashboard/action/send-test - Trigger test send
+```
+
+### Setup Flow
+
+#### First-Time Setup Wizard
+
+**Step 1: Welcome**
+
+```
+Welcome to Amoeba! 
+I'm your email operations agent.
+Let's get you set up in 2 minutes.
+[Start Setup] [Import Config] [Skip]
+```
+
+**Step 2: Quick Config**
+
+```
+What's your primary use case?
+[📧 Transactional] [📰 Newsletter] [🛒 E-commerce] [🔮 Custom]
+
+Paste your database connection:
+[_________________________] [Test Connection]
+
+Email provider:
+[SendGrid ▼] API Key: [_____________] [Verify]
+```
+
+**Step 3: Agent Introduction**
+
+```
+Agent: "I've analyzed your database and found:
+- Users table with 3,421 records
+- Email field identified
+- Suggested segments: Premium, Free, Trial
+
+Would you like me to:
+[Set up daily emails] [Create welcome series] [Start monitoring] [Open Dashboard]"
+```
+
+### Dashboard Customization
+
+#### Widget System
+
+**Customizable Layout**:
+
+- Drag and drop widgets
+- Resize panels
+- Create custom dashboards
+- Save layouts per user
+- Quick switch between views
+
+#### Theme Options
+
+- Light/Dark mode
+- Accent color selection
+- Compact/Comfortable/Spacious density
+- Font size adjustment
+- High contrast mode
+
+### Real-Time Features
+
+#### Live Updates
+
+**WebSocket Powered**:
+
+- Metrics update without refresh
+- Queue status in real-time
+- Log streaming
+- Agent responses instant
+- Collaborative editing
+
+#### Notifications
+
+**Smart Alerting**:
+
+- Desktop notifications for critical events
+- In-dashboard toast messages
+- Agent proactive warnings
+- Email/SMS for severe issues
+- Customizable alert rules
+
+### The Complete Experience
+
+**From Login to Action**:
+
+1. Access dashboard at `http://your-server:3000/dashboard`
+1. See everything at a glance
+1. Chat with agent for quick answers
+1. Click to edit any configuration
+1. Watch changes take effect instantly
+1. Agent provides feedback and optimization
+
+**Power User Features**:
+
+- Keyboard shortcuts for everything
+- Command palette (Cmd+K)
+- Quick search across all data
+- Bulk operations
+- Custom scripts and automations
+- Webhook debugger
+- API playground
+
+### Dashboard Performance
+
+**Optimized for Speed**:
+
+- Loads in < 2 seconds
+- Lazy loading for large datasets
+- Virtual scrolling for logs
+- Debounced API calls
+- Client-side caching
+- Progressive enhancement
+
+### Export & Backup
+
+**Data Portability**:
+
+- Export all config as JSON
+- Download email templates
+- Backup agent knowledge
+- Export analytics data
+- Migration tools
+- Version control friendly
+
+## The Amoeba Promise with Dashboard
+
+**See Everything**: Complete visibility into your email operations
+**Change Anything**: Every setting editable through the UI
+**Ask the Agent**: Natural language control when you need it
+**Stay in Control**: You decide the automation level
+**Never Touch Code**: Everything configurable through the dashboard
+
+Deploy Amoeba, open the dashboard, and take control of your email operations with the perfect blend of visual control and AI assistance.

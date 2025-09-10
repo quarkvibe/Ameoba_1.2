@@ -99,6 +99,12 @@ export class QueueService {
       case 'cleanup':
         await this.processCleanupJob(job);
         break;
+      case 'horoscope_generation':
+        await this.processHoroscopeGenerationJob(job);
+        break;
+      case 'personalized_horoscope_emails':
+        await this.processPersonalizedEmailJob(job);
+        break;
       default:
         throw new Error(`Unknown job type: ${job.type}`);
     }
@@ -243,6 +249,22 @@ export class QueueService {
         failedAt: null,
       });
     }
+  }
+
+  private async processHoroscopeGenerationJob(job: QueueJob): Promise<void> {
+    // Import here to avoid circular dependency
+    const { horoscopeQueueService } = await import('./horoscopeQueueService');
+    await horoscopeQueueService.processHoroscopeGenerationJob(job.data);
+  }
+
+  private async processPersonalizedEmailJob(job: QueueJob): Promise<void> {
+    // Import here to avoid circular dependency
+    const { horoscopeQueueService } = await import('./horoscopeQueueService');
+    await horoscopeQueueService.processPersonalizedEmailJob(job.data);
+  }
+
+  async addJob(job: Omit<InsertQueueJob, 'id' | 'createdAt'>): Promise<QueueJob> {
+    return await storage.createQueueJob(job);
   }
 }
 

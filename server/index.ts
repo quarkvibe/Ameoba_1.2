@@ -48,31 +48,6 @@ app.use((req, res, next) => {
     throw err;
   });
 
-  // Simple authentication middleware for console access only
-  const simpleAuth = (req: any, res: any, next: any) => {
-    // Skip auth for API endpoints - they need to be public for zodiacbuddy.com
-    if (req.path.startsWith('/api/')) {
-      return next();
-    }
-    
-    // Check for basic auth or session
-    const auth = req.headers.authorization;
-    if (auth && auth.startsWith('Basic ')) {
-      const credentials = Buffer.from(auth.slice(6), 'base64').toString();
-      const [username, password] = credentials.split(':');
-      
-      // Simple hardcoded login (replace with your credentials)
-      if (username === 'admin' && (password === process.env.ADMIN_PASSWORD || password === 'horoscope123')) {
-        return next();
-      }
-    }
-    
-    // Return basic auth challenge for console access
-    res.set('WWW-Authenticate', 'Basic realm="Horoscope Console"');
-    res.status(401).json({ message: 'Authentication required for console access' });
-  };
-
-  app.use(simpleAuth);
 
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route

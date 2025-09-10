@@ -11,6 +11,8 @@ import { horoscopeQueueService } from "./services/horoscopeQueueService";
 import { productionDbService } from "./services/productionDbService";
 import { premiumEmailService } from "./services/premiumEmailService";
 import { cronService } from "./services/cronService";
+import { integrationService } from "./services/integrationService";
+import { authenticateApiKey, requirePermission, logApiUsage, rateLimitIntegration } from "./middleware/integration";
 import { insertCampaignSchema, insertEmailConfigurationSchema } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -683,6 +685,252 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to test production database" });
     }
   });
+
+  // ====== INTEGRATION API ENDPOINTS ======
+  // Public API endpoints for external integrations (like Zodiac Buddy)
+  
+  // Health check endpoint (no auth required)
+  app.get('/api/integration/health', (req, res) => {
+    res.json({
+      status: 'healthy',
+      service: 'Amoeba Horoscope Service',
+      version: '1.0.0',
+      timestamp: new Date().toISOString(),
+    });
+  });
+
+  // Get today's horoscopes for all signs (public endpoint)
+  app.get('/api/integration/horoscopes/today', 
+    authenticateApiKey, 
+    requirePermission('read:horoscopes'),
+    logApiUsage,
+    rateLimitIntegration(200, 60000), // 200 requests per minute
+    async (req, res) => {
+      try {
+        const today = new Date().toISOString().split('T')[0];
+        const horoscopes = await storage.getAllHoroscopesForDate(today);
+        
+        if (horoscopes.length === 0) {
+          return res.status(404).json({
+            error: 'Not Found',
+            message: 'No horoscopes available for today',
+            date: today,
+          });
+        }
+
+        // Transform data for external consumption
+        const transformedHoroscopes = await Promise.all(
+          horoscopes.map(async (h) => {
+            const sign = await storage.getZodiacSignByName(h.zodiacSignId.toString());
+            return {
+              sign: sign?.name,
+              content: h.content,
+              mood: h.mood,
+              luckNumber: h.luckNumber,
+              luckyColor: h.luckyColor,
+              date: h.date,
+              generatedAt: h.generatedAt,
+            };
+          })
+        );
+
+        res.json({
+          date: today,
+          horoscopes: transformedHoroscopes,
+          total: transformedHoroscopes.length,
+        });
+      } catch (error) {
+        console.error('Error fetching today\'s horoscopes:', error);
+        res.status(500).json({
+          error: 'Internal Server Error',
+          message: 'Failed to fetch horoscopes',
+        });
+      }
+    }
+  );
+
+  // Get horoscope for specific date and sign
+  app.get('/api/integration/horoscopes/:sign/:date',
+    authenticateApiKey,
+    requirePermission('read:horoscopes'),
+    logApiUsage,
+    rateLimitIntegration(500, 60000), // 500 requests per minute
+    async (req, res) => {
+      try {
+        const { sign, date } = req.params;
+        
+        // Validate date format
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+          return res.status(400).json({
+            error: 'Bad Request',
+            message: 'Date must be in YYYY-MM-DD format',
+          });
+        }
+
+        const horoscope = await storage.getHoroscopeBySignAndDate(sign.toLowerCase(), date);
+        
+        if (!horoscope) {
+          return res.status(404).json({
+            error: 'Not Found',
+            message: `No horoscope found for ${sign} on ${date}`,
+          });
+        }
+
+        res.json({
+          sign: sign.toLowerCase(),
+          date,
+          content: horoscope.content,
+          mood: horoscope.mood,
+          luckNumber: horoscope.luckNumber,
+          luckyColor: horoscope.luckyColor,
+          generatedAt: horoscope.generatedAt,
+        });
+      } catch (error) {
+        console.error('Error fetching horoscope:', error);
+        res.status(500).json({
+          error: 'Internal Server Error',
+          message: 'Failed to fetch horoscope',
+        });
+      }
+    }
+  );
+
+  // Bulk export endpoint for efficient data transfer
+  app.get('/api/integration/horoscopes/bulk/:startDate/:endDate',
+    authenticateApiKey,
+    requirePermission('read:bulk'),
+    logApiUsage,
+    rateLimitIntegration(10, 60000), // 10 bulk requests per minute
+    async (req, res) => {
+      try {
+        const { startDate, endDate } = req.params;
+        
+        // Validate date formats
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
+          return res.status(400).json({
+            error: 'Bad Request',
+            message: 'Dates must be in YYYY-MM-DD format',
+          });
+        }
+
+        // Limit date range to prevent abuse
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        const daysDiff = Math.abs(end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24);
+        
+        if (daysDiff > 30) {
+          return res.status(400).json({
+            error: 'Bad Request',
+            message: 'Date range cannot exceed 30 days',
+          });
+        }
+
+        // This would need a new storage method for date range queries
+        // For now, we'll get individual days
+        const horoscopesByDate = {};
+        const currentDate = new Date(startDate);
+        
+        while (currentDate <= end) {
+          const dateStr = currentDate.toISOString().split('T')[0];
+          const dayHoroscopes = await storage.getAllHoroscopesForDate(dateStr);
+          
+          if (dayHoroscopes.length > 0) {
+            horoscopesByDate[dateStr] = await Promise.all(
+              dayHoroscopes.map(async (h) => {
+                const sign = await storage.getZodiacSignByName(h.zodiacSignId.toString());
+                return {
+                  sign: sign?.name,
+                  content: h.content,
+                  mood: h.mood,
+                  luckNumber: h.luckNumber,
+                  luckyColor: h.luckyColor,
+                };
+              })
+            );
+          }
+          
+          currentDate.setDate(currentDate.getDate() + 1);
+        }
+
+        res.json({
+          startDate,
+          endDate,
+          data: horoscopesByDate,
+          totalDays: Object.keys(horoscopesByDate).length,
+        });
+      } catch (error) {
+        console.error('Error fetching bulk horoscopes:', error);
+        res.status(500).json({
+          error: 'Internal Server Error',
+          message: 'Failed to fetch bulk horoscopes',
+        });
+      }
+    }
+  );
+
+  // Integration analytics endpoint
+  app.get('/api/integration/analytics',
+    authenticateApiKey,
+    requirePermission('read:analytics'),
+    logApiUsage,
+    async (req, res) => {
+      try {
+        const days = parseInt(req.query.days as string) || 7;
+        const analytics = await integrationService.getIntegrationAnalytics(days);
+        
+        res.json({
+          period: `${days} days`,
+          ...analytics,
+        });
+      } catch (error) {
+        console.error('Error fetching integration analytics:', error);
+        res.status(500).json({
+          error: 'Internal Server Error',
+          message: 'Failed to fetch analytics',
+        });
+      }
+    }
+  );
+
+  // Webhook registration endpoint  
+  app.post('/api/integration/webhooks',
+    authenticateApiKey,
+    requirePermission('manage:webhooks'),
+    logApiUsage,
+    async (req, res) => {
+      try {
+        const { name, url, events } = req.body;
+        
+        if (!name || !url || !events || !Array.isArray(events)) {
+          return res.status(400).json({
+            error: 'Bad Request',
+            message: 'Name, URL, and events array are required',
+          });
+        }
+
+        const webhook = await integrationService.registerWebhook({
+          name,
+          url,
+          events,
+        });
+
+        res.status(201).json({
+          id: webhook.id,
+          name: webhook.name,
+          url: webhook.url,
+          events: webhook.events,
+          isActive: webhook.isActive,
+          createdAt: webhook.createdAt,
+        });
+      } catch (error) {
+        console.error('Error registering webhook:', error);
+        res.status(500).json({
+          error: 'Internal Server Error',
+          message: 'Failed to register webhook',
+        });
+      }
+    }
+  );
 
   const httpServer = createServer(app);
 

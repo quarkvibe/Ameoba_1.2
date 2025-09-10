@@ -338,6 +338,64 @@ export const insertHoroscopeGenerationSchema = createInsertSchema(horoscopeGener
   createdAt: true,
 });
 
+// API Keys for external integrations
+export const apiKeys = pgTable("api_keys", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name", { length: 100 }).notNull(),
+  keyHash: varchar("key_hash", { length: 255 }).notNull(),
+  permissions: jsonb("permissions").notNull(),
+  isActive: boolean("is_active").default(true),
+  lastUsed: timestamp("last_used"),
+  expiresAt: timestamp("expires_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Webhook configurations for external notifications
+export const webhooks = pgTable("webhooks", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name", { length: 100 }).notNull(),
+  url: varchar("url", { length: 500 }).notNull(),
+  events: jsonb("events").notNull(), // Array of event types to listen for
+  isActive: boolean("is_active").default(true),
+  secret: varchar("secret", { length: 255 }), // For webhook signature verification
+  retryAttempts: integer("retry_attempts").default(3),
+  lastTriggered: timestamp("last_triggered"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Integration logs for monitoring
+export const integrationLogs = pgTable("integration_logs", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  type: varchar("type", { length: 50 }).notNull(), // 'api_call', 'webhook', 'sync'
+  source: varchar("source", { length: 100 }), // API key name or webhook name
+  endpoint: varchar("endpoint", { length: 200 }),
+  method: varchar("method", { length: 10 }),
+  statusCode: integer("status_code"),
+  responseTime: integer("response_time"), // in milliseconds
+  errorMessage: text("error_message"),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertApiKeySchema = createInsertSchema(apiKeys).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertWebhookSchema = createInsertSchema(webhooks).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertIntegrationLogSchema = createInsertSchema(integrationLogs).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Types
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
@@ -365,3 +423,11 @@ export type AstrologyDataCache = typeof astrologyDataCache.$inferSelect;
 export type InsertAstrologyDataCache = z.infer<typeof insertAstrologyDataCacheSchema>;
 export type HoroscopeGeneration = typeof horoscopeGenerations.$inferSelect;
 export type InsertHoroscopeGeneration = z.infer<typeof insertHoroscopeGenerationSchema>;
+
+// Integration types
+export type ApiKey = typeof apiKeys.$inferSelect;
+export type InsertApiKey = z.infer<typeof insertApiKeySchema>;
+export type Webhook = typeof webhooks.$inferSelect;
+export type InsertWebhook = z.infer<typeof insertWebhookSchema>;
+export type IntegrationLog = typeof integrationLogs.$inferSelect;
+export type InsertIntegrationLog = z.infer<typeof insertIntegrationLogSchema>;

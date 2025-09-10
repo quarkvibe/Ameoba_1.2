@@ -34,6 +34,15 @@ import {
   type InsertAstrologyDataCache,
   type HoroscopeGeneration,
   type InsertHoroscopeGeneration,
+  apiKeys,
+  type ApiKey,
+  type InsertApiKey,
+  webhooks,
+  type Webhook,
+  type InsertWebhook,
+  integrationLogs,
+  type IntegrationLog,
+  type InsertIntegrationLog,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, sql, count, gte, lte } from "drizzle-orm";
@@ -96,6 +105,21 @@ export interface IStorage {
   // Premium user operations
   getUserSunChart(userId: string): Promise<UserSunChart | undefined>;
   createUserSunChart(sunChart: InsertUserSunChart): Promise<UserSunChart>;
+
+  // Integration operations
+  createApiKey(apiKey: InsertApiKey): Promise<ApiKey>;
+  getApiKeyByHash(keyHash: string): Promise<ApiKey | undefined>;
+  updateApiKeyLastUsed(id: string): Promise<void>;
+  deactivateApiKey(id: string): Promise<void>;
+  getActiveApiKeys(): Promise<ApiKey[]>;
+  
+  createWebhook(webhook: InsertWebhook): Promise<Webhook>;
+  getActiveWebhooks(): Promise<Webhook[]>;
+  getActiveWebhooksByEvent(event: string): Promise<Webhook[]>;
+  updateWebhookLastTriggered(id: string): Promise<void>;
+  
+  createIntegrationLog(log: InsertIntegrationLog): Promise<IntegrationLog>;
+  getIntegrationLogsSince(since: Date): Promise<IntegrationLog[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -378,6 +402,77 @@ export class DatabaseStorage implements IStorage {
   async createUserSunChart(sunChart: InsertUserSunChart): Promise<UserSunChart> {
     const [newSunChart] = await db.insert(userSunCharts).values(sunChart).returning();
     return newSunChart;
+  }
+
+  // Integration operations
+  async createApiKey(apiKey: InsertApiKey): Promise<ApiKey> {
+    const [newApiKey] = await db.insert(apiKeys).values(apiKey).returning();
+    return newApiKey;
+  }
+
+  async getApiKeyByHash(keyHash: string): Promise<ApiKey | undefined> {
+    const [apiKey] = await db.select()
+      .from(apiKeys)
+      .where(eq(apiKeys.keyHash, keyHash));
+    return apiKey;
+  }
+
+  async updateApiKeyLastUsed(id: string): Promise<void> {
+    await db.update(apiKeys)
+      .set({ lastUsed: new Date() })
+      .where(eq(apiKeys.id, id));
+  }
+
+  async deactivateApiKey(id: string): Promise<void> {
+    await db.update(apiKeys)
+      .set({ isActive: false })
+      .where(eq(apiKeys.id, id));
+  }
+
+  async getActiveApiKeys(): Promise<ApiKey[]> {
+    return await db.select()
+      .from(apiKeys)
+      .where(eq(apiKeys.isActive, true))
+      .orderBy(desc(apiKeys.createdAt));
+  }
+
+  async createWebhook(webhook: InsertWebhook): Promise<Webhook> {
+    const [newWebhook] = await db.insert(webhooks).values(webhook).returning();
+    return newWebhook;
+  }
+
+  async getActiveWebhooks(): Promise<Webhook[]> {
+    return await db.select()
+      .from(webhooks)
+      .where(eq(webhooks.isActive, true))
+      .orderBy(desc(webhooks.createdAt));
+  }
+
+  async getActiveWebhooksByEvent(event: string): Promise<Webhook[]> {
+    return await db.select()
+      .from(webhooks)
+      .where(and(
+        eq(webhooks.isActive, true),
+        sql`${webhooks.events} @> ${JSON.stringify([event])}`
+      ));
+  }
+
+  async updateWebhookLastTriggered(id: string): Promise<void> {
+    await db.update(webhooks)
+      .set({ lastTriggered: new Date() })
+      .where(eq(webhooks.id, id));
+  }
+
+  async createIntegrationLog(log: InsertIntegrationLog): Promise<IntegrationLog> {
+    const [newLog] = await db.insert(integrationLogs).values(log).returning();
+    return newLog;
+  }
+
+  async getIntegrationLogsSince(since: Date): Promise<IntegrationLog[]> {
+    return await db.select()
+      .from(integrationLogs)
+      .where(gte(integrationLogs.createdAt, since))
+      .orderBy(desc(integrationLogs.createdAt));
   }
 }
 

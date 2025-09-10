@@ -636,7 +636,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({
         message: "Horoscope generation test completed",
         date: targetDate,
-        ...result
+        result: result
       });
     } catch (error) {
       console.error("Error in test horoscope generation:", error);

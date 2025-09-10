@@ -130,7 +130,7 @@ export const rateLimitIntegration = (maxRequests: number = 100, windowMs: number
     const windowStart = now - windowMs;
     
     // Clean up old entries
-    for (const [k, v] of requests.entries()) {
+    for (const [k, v] of Array.from(requests.entries())) {
       if (v.resetTime < windowStart) {
         requests.delete(k);
       }

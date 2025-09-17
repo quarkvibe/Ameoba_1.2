@@ -10,6 +10,7 @@ import { premiumEmailService } from "./services/premiumEmailService";
 import { cronService } from "./services/cronService";
 import { productionDbService } from "./services/productionDbService";
 import { integrationService } from "./services/integrationService";
+import { astronomyService } from "./services/astronomyService";
 import { WebSocketServer, WebSocket } from "ws";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -135,6 +136,154 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error(`Error fetching horoscope for ${req.params.sign}:`, error);
       res.status(500).json({ message: "Failed to fetch horoscope" });
+    }
+  });
+
+  // =============================================================================
+  // ASTRONOMY & ASTRONOMICAL CONDITIONS
+  // =============================================================================
+
+  // Get comprehensive astronomical data for current date
+  app.get("/api/astronomy/current", async (req, res) => {
+    try {
+      const astronomicalData = await astronomyService.getAstronomicalData();
+      res.json({
+        timestamp: new Date().toISOString(),
+        calculation_method: astronomyService.isSwissEphemerisAvailable() ? 'Swiss Ephemeris (High Precision)' : 'Astronomy Engine',
+        ...astronomicalData
+      });
+    } catch (error) {
+      console.error("Error fetching current astronomical data:", error);
+      res.status(500).json({ message: "Failed to fetch astronomical data" });
+    }
+  });
+
+  // Get astronomical data for a specific date
+  app.get("/api/astronomy/date/:date", async (req, res) => {
+    try {
+      const { date } = req.params;
+      const requestedDate = new Date(date);
+      
+      if (isNaN(requestedDate.getTime())) {
+        return res.status(400).json({ message: "Invalid date format. Use YYYY-MM-DD" });
+      }
+      
+      const astronomicalData = await astronomyService.getAstronomicalData(requestedDate);
+      res.json({
+        requested_date: date,
+        calculation_method: astronomyService.isSwissEphemerisAvailable() ? 'Swiss Ephemeris (High Precision)' : 'Astronomy Engine',
+        ...astronomicalData
+      });
+    } catch (error) {
+      console.error(`Error fetching astronomical data for ${req.params.date}:`, error);
+      res.status(500).json({ message: "Failed to fetch astronomical data" });
+    }
+  });
+
+  // Get current planetary positions only
+  app.get("/api/astronomy/planets/current", async (req, res) => {
+    try {
+      const positions = await astronomyService.calculatePlanetaryPositions(new Date());
+      res.json({
+        timestamp: new Date().toISOString(),
+        calculation_method: astronomyService.isSwissEphemerisAvailable() ? 'Swiss Ephemeris (High Precision)' : 'Astronomy Engine',
+        planetary_positions: positions
+      });
+    } catch (error) {
+      console.error("Error fetching planetary positions:", error);
+      res.status(500).json({ message: "Failed to fetch planetary positions" });
+    }
+  });
+
+  // Get planetary positions for a specific date
+  app.get("/api/astronomy/planets/:date", async (req, res) => {
+    try {
+      const { date } = req.params;
+      const requestedDate = new Date(date);
+      
+      if (isNaN(requestedDate.getTime())) {
+        return res.status(400).json({ message: "Invalid date format. Use YYYY-MM-DD" });
+      }
+      
+      const positions = await astronomyService.calculatePlanetaryPositions(requestedDate);
+      res.json({
+        date: date,
+        calculation_method: astronomyService.isSwissEphemerisAvailable() ? 'Swiss Ephemeris (High Precision)' : 'Astronomy Engine',
+        planetary_positions: positions
+      });
+    } catch (error) {
+      console.error(`Error fetching planetary positions for ${req.params.date}:`, error);
+      res.status(500).json({ message: "Failed to fetch planetary positions" });
+    }
+  });
+
+  // Get current lunar phase information
+  app.get("/api/astronomy/moon/current", async (req, res) => {
+    try {
+      const lunarPhase = await astronomyService.calculateLunarPhase(new Date());
+      res.json({
+        timestamp: new Date().toISOString(),
+        lunar_phase: lunarPhase
+      });
+    } catch (error) {
+      console.error("Error fetching lunar phase:", error);
+      res.status(500).json({ message: "Failed to fetch lunar phase data" });
+    }
+  });
+
+  // Get current planetary aspects
+  app.get("/api/astronomy/aspects/current", async (req, res) => {
+    try {
+      const positions = await astronomyService.calculatePlanetaryPositions(new Date());
+      const aspects = await astronomyService.calculateAspects(positions);
+      res.json({
+        timestamp: new Date().toISOString(),
+        planetary_aspects: aspects
+      });
+    } catch (error) {
+      console.error("Error fetching planetary aspects:", error);
+      res.status(500).json({ message: "Failed to fetch planetary aspects" });
+    }
+  });
+
+  // Get astronomical conditions summary (plain text)
+  app.get("/api/astronomy/conditions", async (req, res) => {
+    try {
+      const conditions = await astronomyService.getCurrentConditions();
+      res.json({
+        timestamp: new Date().toISOString(),
+        conditions_summary: conditions,
+        calculation_method: astronomyService.isSwissEphemerisAvailable() ? 'Swiss Ephemeris (High Precision)' : 'Astronomy Engine'
+      });
+    } catch (error) {
+      console.error("Error fetching astronomical conditions:", error);
+      res.status(500).json({ message: "Failed to fetch astronomical conditions" });
+    }
+  });
+
+  // Get system status and available calculation methods
+  app.get("/api/astronomy/status", async (req, res) => {
+    try {
+      res.json({
+        timestamp: new Date().toISOString(),
+        service_status: "operational",
+        swiss_ephemeris_available: astronomyService.isSwissEphemerisAvailable(),
+        calculation_method: astronomyService.isSwissEphemerisAvailable() ? 'Swiss Ephemeris (High Precision)' : 'Astronomy Engine',
+        supported_bodies: [
+          "Sun", "Moon", "Mercury", "Venus", "Mars", 
+          "Jupiter", "Saturn", "Uranus", "Neptune", "Pluto"
+        ],
+        supported_features: [
+          "Planetary positions",
+          "Lunar phases", 
+          "Planetary aspects",
+          "Zodiacal positions",
+          "Julian day calculations"
+        ]
+      });
+    } catch (error) {
+      console.error("Error fetching astronomy service status:", error);
+      res.status(500).json({ message: "Failed to fetch service status" });
     }
   });
 

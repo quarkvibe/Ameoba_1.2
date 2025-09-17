@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import { storage } from "../storage";
 import { integrationService } from "./integrationService";
+import { astronomyService } from "./astronomyService";
 import { 
   ZodiacSign, 
   AstrologyDataCache, 
@@ -29,45 +30,36 @@ interface AstrologyApiResponse {
 export class HoroscopeService {
   
   /**
-   * Fetch current planetary data from Free Astrology API
+   * Fetch current planetary data from our internal astronomy service
    */
   async fetchCurrentAstrologyData(date: string): Promise<AstrologyApiResponse> {
     try {
-      // FreeAstrologyAPI.com endpoint for current planetary positions
-      // Using current date to get today's planetary positions
-      const response = await fetch('https://api.freeastrologyapi.com/api/v1/planetary-positions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          day: parseInt(date.split('-')[2]),
-          month: parseInt(date.split('-')[1]),
-          year: parseInt(date.split('-')[0]),
-          hour: 12, // noon UTC
-          min: 0,
-          lat: 0, // Greenwich
-          lon: 0,
-          tzone: 0
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error(`Astrology API error: ${response.status}`);
-      }
-
-      const data = await response.json();
+      // Parse date and create Date object for astronomy service
+      const requestDate = new Date(date + 'T12:00:00.000Z'); // noon UTC
       
-      // Transform the response to our expected format
+      // Get comprehensive astronomical data from our internal service
+      const astronomicalData = await astronomyService.getAstronomicalData(requestDate);
+      
+      // Transform planetary positions to our expected format
+      const planets: PlanetaryPosition[] = astronomicalData.planetPositions.map((planet: any) => ({
+        planet: planet.name,
+        sign: planet.zodiacSign,
+        degree: Math.round(planet.zodiacDegree * 100) / 100, // round to 2 decimal places
+        house: planet.house // may be undefined
+      }));
+      
+      // Get current lunar phase information
+      const moonPhaseData = await astronomyService.calculateLunarPhase(requestDate);
+      
       return {
-        planets: data.planets || [],
-        aspects: data.aspects || [],
-        moon_phase: data.moon_phase || 'unknown',
+        planets: planets,
+        aspects: astronomicalData.aspects,
+        moon_phase: moonPhaseData.currentPhase,
         date: date
       };
     } catch (error) {
-      console.error('Error fetching astrology data:', error);
-      // Fallback with basic data structure
+      console.error('Error fetching internal astrology data:', error);
+      // Fallback with basic data structure - this should rarely happen
       return {
         planets: [],
         aspects: [],
@@ -99,7 +91,7 @@ export class HoroscopeService {
       planetaryPositions: apiData.planets,
       aspects: apiData.aspects,
       moonPhase: apiData.moon_phase,
-      apiSource: 'freeastrology',
+      apiSource: 'internal_astronomy_service',
       rawData: apiData,
       expiresAt: expiresAt,
     };
@@ -118,15 +110,18 @@ export class HoroscopeService {
     try {
       const planetaryInfluences = this.analyzePlanetaryInfluences(zodiacSign, astrologyData);
       
+      // Get zodiac sign details from our internal knowledge
+      const signDetails = this.getZodiacSignDetails(zodiacSign.name);
+      
       const prompt = `As a professional astrologer, generate a daily horoscope for ${zodiacSign.name.toUpperCase()} for ${date}.
 
 ZODIAC SIGN DETAILS:
-- Sign: ${zodiacSign.name} (${zodiacSign.symbol})
-- Element: ${zodiacSign.element}
-- Quality: ${zodiacSign.quality}
-- Date Range: ${zodiacSign.dateRange}
-- Ruling Planet: ${(zodiacSign.traits as any)?.ruling_planet || 'unknown'}
-- Key Traits: ${(zodiacSign.traits as any)?.keywords?.join(', ') || 'none'}
+- Sign: ${zodiacSign.name} (${signDetails.symbol})
+- Element: ${signDetails.element}
+- Quality: ${signDetails.quality}
+- Date Range: ${signDetails.dateRange}
+- Ruling Planet: ${signDetails.rulingPlanet}
+- Key Traits: ${signDetails.keyTraits.join(', ')}
 
 CURRENT PLANETARY POSITIONS:
 ${JSON.stringify(astrologyData.planetaryPositions, null, 2)}
@@ -184,6 +179,7 @@ Format as JSON:
   private analyzePlanetaryInfluences(zodiacSign: ZodiacSign, astrologyData: AstrologyDataCache): string {
     const influences: string[] = [];
     const planets = astrologyData.planetaryPositions as PlanetaryPosition[];
+    const signDetails = this.getZodiacSignDetails(zodiacSign.name);
     
     if (!planets || planets.length === 0) {
       return "General planetary influences suggest a day of reflection and growth.";
@@ -191,8 +187,8 @@ Format as JSON:
 
     // Check for planets in the same element
     planets.forEach(planet => {
-      if (this.getElementForSign(planet.sign) === zodiacSign.element) {
-        influences.push(`${planet.planet} in ${planet.sign} harmonizes with your ${zodiacSign.element} nature`);
+      if (this.getElementForSign(planet.sign) === signDetails.element) {
+        influences.push(`${planet.planet} in ${planet.sign} harmonizes with your ${signDetails.element} nature`);
       }
     });
 
@@ -214,16 +210,130 @@ Format as JSON:
   }
 
   /**
+   * Get comprehensive zodiac sign details
+   */
+  private getZodiacSignDetails(signName: string): {
+    symbol: string;
+    element: string;
+    quality: string;
+    dateRange: string;
+    rulingPlanet: string;
+    keyTraits: string[];
+  } {
+    const zodiacData: Record<string, any> = {
+      'aries': {
+        symbol: '♈',
+        element: 'fire',
+        quality: 'cardinal',
+        dateRange: 'March 21 - April 19',
+        rulingPlanet: 'Mars',
+        keyTraits: ['energetic', 'pioneering', 'assertive', 'competitive']
+      },
+      'taurus': {
+        symbol: '♉',
+        element: 'earth',
+        quality: 'fixed',
+        dateRange: 'April 20 - May 20',
+        rulingPlanet: 'Venus',
+        keyTraits: ['stable', 'practical', 'luxurious', 'determined']
+      },
+      'gemini': {
+        symbol: '♊',
+        element: 'air',
+        quality: 'mutable',
+        dateRange: 'May 21 - June 20',
+        rulingPlanet: 'Mercury',
+        keyTraits: ['communicative', 'adaptable', 'curious', 'social']
+      },
+      'cancer': {
+        symbol: '♋',
+        element: 'water',
+        quality: 'cardinal',
+        dateRange: 'June 21 - July 22',
+        rulingPlanet: 'Moon',
+        keyTraits: ['nurturing', 'emotional', 'protective', 'intuitive']
+      },
+      'leo': {
+        symbol: '♌',
+        element: 'fire',
+        quality: 'fixed',
+        dateRange: 'July 23 - August 22',
+        rulingPlanet: 'Sun',
+        keyTraits: ['confident', 'creative', 'generous', 'dramatic']
+      },
+      'virgo': {
+        symbol: '♍',
+        element: 'earth',
+        quality: 'mutable',
+        dateRange: 'August 23 - September 22',
+        rulingPlanet: 'Mercury',
+        keyTraits: ['analytical', 'practical', 'perfectionist', 'helpful']
+      },
+      'libra': {
+        symbol: '♎',
+        element: 'air',
+        quality: 'cardinal',
+        dateRange: 'September 23 - October 22',
+        rulingPlanet: 'Venus',
+        keyTraits: ['balanced', 'diplomatic', 'harmonious', 'social']
+      },
+      'scorpio': {
+        symbol: '♏',
+        element: 'water',
+        quality: 'fixed',
+        dateRange: 'October 23 - November 21',
+        rulingPlanet: 'Pluto',
+        keyTraits: ['intense', 'mysterious', 'transformative', 'passionate']
+      },
+      'sagittarius': {
+        symbol: '♐',
+        element: 'fire',
+        quality: 'mutable',
+        dateRange: 'November 22 - December 21',
+        rulingPlanet: 'Jupiter',
+        keyTraits: ['adventurous', 'philosophical', 'optimistic', 'freedom-loving']
+      },
+      'capricorn': {
+        symbol: '♑',
+        element: 'earth',
+        quality: 'cardinal',
+        dateRange: 'December 22 - January 19',
+        rulingPlanet: 'Saturn',
+        keyTraits: ['ambitious', 'disciplined', 'responsible', 'practical']
+      },
+      'aquarius': {
+        symbol: '♒',
+        element: 'air',
+        quality: 'fixed',
+        dateRange: 'January 20 - February 18',
+        rulingPlanet: 'Uranus',
+        keyTraits: ['innovative', 'independent', 'humanitarian', 'unconventional']
+      },
+      'pisces': {
+        symbol: '♓',
+        element: 'water',
+        quality: 'mutable',
+        dateRange: 'February 19 - March 20',
+        rulingPlanet: 'Neptune',
+        keyTraits: ['intuitive', 'compassionate', 'artistic', 'dreamy']
+      }
+    };
+
+    return zodiacData[signName.toLowerCase()] || {
+      symbol: '?',
+      element: 'unknown',
+      quality: 'unknown',
+      dateRange: 'unknown',
+      rulingPlanet: 'unknown',
+      keyTraits: ['mysterious']
+    };
+  }
+
+  /**
    * Get the element for a zodiac sign name
    */
   private getElementForSign(signName: string): string {
-    const elementMap: Record<string, string> = {
-      'aries': 'fire', 'leo': 'fire', 'sagittarius': 'fire',
-      'taurus': 'earth', 'virgo': 'earth', 'capricorn': 'earth',
-      'gemini': 'air', 'libra': 'air', 'aquarius': 'air',
-      'cancer': 'water', 'scorpio': 'water', 'pisces': 'water'
-    };
-    return elementMap[signName.toLowerCase()] || 'unknown';
+    return this.getZodiacSignDetails(signName).element;
   }
 
   /**
@@ -246,10 +356,8 @@ Format as JSON:
         throw new Error('Failed to fetch astrology data');
       }
 
-      // Update generation with astrology data reference
-      await storage.updateHoroscopeGeneration(generation.id, {
-        astrologyDataId: astrologyData.id,
-      });
+      // Generation started successfully with astrology data
+      console.log(`Started horoscope generation for ${date} with internal astronomy service`);
 
       // Get all zodiac signs
       const zodiacSigns = await storage.getAllZodiacSigns();
@@ -270,18 +378,11 @@ Format as JSON:
             console.log('Using fallback horoscope data for', sign.name);
           }
 
-          // Save the horoscope
+          // Save the horoscope (removed planetaryInfluence as it's not in the current schema)
           const horoscope: InsertHoroscope = {
             zodiacSignId: sign.id,
             date: date,
             content: horoscopeData.content,
-            mood: horoscopeData.mood,
-            luckNumber: horoscopeData.luckNumber,
-            luckyColor: horoscopeData.luckyColor,
-            planetaryInfluence: {
-              moonPhase: astrologyData.moonPhase,
-              keyPlanets: (astrologyData.planetaryPositions as PlanetaryPosition[]).slice(0, 3)
-            },
           };
 
           await storage.createHoroscope(horoscope);
@@ -334,13 +435,15 @@ Format as JSON:
   ): Promise<{ content: string; mood: string; luckNumber: number; luckyColor: string }> {
     const planetaryInfluences = this.analyzePlanetaryInfluences(zodiacSign, astrologyData);
     
+    const signDetails = this.getZodiacSignDetails(zodiacSign.name);
+    
     const prompt = `As a professional astrologer, generate a daily horoscope for ${zodiacSign.name.toUpperCase()} for ${date}.
 
 ZODIAC SIGN DETAILS:
-- Sign: ${zodiacSign.name} (${zodiacSign.symbol})
-- Element: ${zodiacSign.element}
-- Quality: ${zodiacSign.quality}
-- Ruling Planet: ${(zodiacSign.traits as any)?.ruling_planet || 'unknown'}
+- Sign: ${zodiacSign.name} (${signDetails.symbol})
+- Element: ${signDetails.element}
+- Quality: ${signDetails.quality}
+- Ruling Planet: ${signDetails.rulingPlanet}
 
 CURRENT PLANETARY POSITIONS:
 ${JSON.stringify(astrologyData.planetaryPositions, null, 2)}

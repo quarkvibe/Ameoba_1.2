@@ -4,8 +4,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 interface SystemStatus {
   database: { status: string; latency?: string };
-  redis: { status: string; latency?: string };
-  emailProviders: Array<{ name: string; status: string; type?: string }>;
+  queue: { status: string; depth?: number };
+  astronomyService: { status: string; engine?: string };
+  horoscopeService: { status: string; lastGeneration?: string };
   nextJob?: { name: string; time: string };
 }
 
@@ -18,12 +19,10 @@ export default function SystemStatus() {
   // Mock system status data (would come from backend in production)
   const systemStatus: SystemStatus = {
     database: { status: "connected", latency: "12ms" },
-    redis: { status: "connected", latency: "42ms" },
-    emailProviders: [
-      { name: "SendGrid", status: "active", type: "primary" },
-      { name: "AWS SES", status: "active", type: "backup" },
-    ],
-    nextJob: { name: "Daily Newsletter", time: "5:00 AM" },
+    queue: { status: "active", depth: 0 },
+    astronomyService: { status: "active", engine: "Swiss Ephemeris" },
+    horoscopeService: { status: "active", lastGeneration: new Date().toISOString() },
+    nextJob: { name: "Daily Horoscope Generation", time: "12:00 AM" },
   };
 
   const getStatusIndicator = (status: string) => {
@@ -85,21 +84,31 @@ export default function SystemStatus() {
         
         <div className="space-y-4">
           
-          {/* Email Providers */}
+          {/* Horoscope Service */}
           <div>
-            <p className="text-sm text-muted-foreground mb-2">Email Providers</p>
-            <div className="space-y-2">
-              {systemStatus.emailProviders.map((provider, index) => (
-                <div key={index} className="flex items-center justify-between">
-                  <span className="text-sm text-foreground">{provider.name}</span>
-                  <div className="flex items-center gap-2">
-                    <div className={`w-2 h-2 rounded-full animate-pulse ${getStatusIndicator(provider.status)}`}></div>
-                    <span className="text-xs text-accent capitalize">
-                      {provider.type || getStatusText(provider.status)}
-                    </span>
-                  </div>
-                </div>
-              ))}
+            <p className="text-sm text-muted-foreground mb-2">Horoscope Service</p>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-foreground">Generator</span>
+              <div className="flex items-center gap-2">
+                <div className={`w-2 h-2 rounded-full animate-pulse ${getStatusIndicator(systemStatus.horoscopeService.status)}`}></div>
+                <span className="text-xs text-accent">
+                  {getStatusText(systemStatus.horoscopeService.status)}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Astronomy Service */}
+          <div>
+            <p className="text-sm text-muted-foreground mb-2">Astronomy Service</p>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-foreground">{systemStatus.astronomyService.engine}</span>
+              <div className="flex items-center gap-2">
+                <div className={`w-2 h-2 rounded-full animate-pulse ${getStatusIndicator(systemStatus.astronomyService.status)}`}></div>
+                <span className="text-xs text-accent">
+                  {getStatusText(systemStatus.astronomyService.status)}
+                </span>
+              </div>
             </div>
           </div>
 
@@ -118,15 +127,15 @@ export default function SystemStatus() {
             </div>
           </div>
 
-          {/* Redis Status */}
+          {/* Queue Status */}
           <div>
-            <p className="text-sm text-muted-foreground mb-2">Queue</p>
+            <p className="text-sm text-muted-foreground mb-2">Processing Queue</p>
             <div className="flex items-center justify-between">
-              <span className="text-sm text-foreground">Redis</span>
+              <span className="text-sm text-foreground">Jobs Queue</span>
               <div className="flex items-center gap-2">
-                <div className={`w-2 h-2 rounded-full animate-pulse ${getStatusIndicator(systemStatus.redis.status)}`}></div>
-                <span className="text-xs text-accent" data-testid="text-redis-status">
-                  {systemStatus.redis.latency || getStatusText(systemStatus.redis.status)}
+                <div className={`w-2 h-2 rounded-full animate-pulse ${getStatusIndicator(systemStatus.queue.status)}`}></div>
+                <span className="text-xs text-accent" data-testid="text-queue-status">
+                  {systemStatus.queue.depth !== undefined ? `${systemStatus.queue.depth} jobs` : getStatusText(systemStatus.queue.status)}
                 </span>
               </div>
             </div>

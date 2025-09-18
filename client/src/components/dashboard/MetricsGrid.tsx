@@ -3,10 +3,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface DashboardMetrics {
-  emailsToday: number;
-  deliveryRate: string;
+  horoscopesGenerated: number;
+  astronomyAccuracy: string;
   activeUsers: number;
   queueDepth: number;
+  lastGeneration?: string;
+  zodiacSignsComplete?: number;
 }
 
 export default function MetricsGrid() {
@@ -33,33 +35,33 @@ export default function MetricsGrid() {
 
   const metricCards = [
     {
-      title: "Emails Today",
-      value: metrics?.emailsToday?.toLocaleString() || "0",
-      change: "+12.5%",
+      title: "Horoscopes Today",
+      value: metrics?.horoscopesGenerated?.toLocaleString() || "0",
+      change: metrics?.zodiacSignsComplete ? `${metrics.zodiacSignsComplete}/12 signs` : "0/12 signs",
       changeType: "increase",
-      icon: "fas fa-envelope",
+      icon: "fas fa-star",
       color: "primary",
     },
     {
-      title: "Delivery Rate",
-      value: metrics?.deliveryRate || "0%",
-      change: "Excellent",
+      title: "Astronomy Engine",
+      value: metrics?.astronomyAccuracy || "High Precision",
+      change: "Swiss Ephemeris",
       changeType: "success",
-      icon: "fas fa-chart-line",
+      icon: "fas fa-satellite",
       color: "accent",
     },
     {
       title: "Active Users",
       value: metrics?.activeUsers?.toLocaleString() || "0",
-      change: "Peak hours",
-      changeType: "warning",
+      change: "API requests",
+      changeType: "info",
       icon: "fas fa-users",
       color: "yellow-500",
     },
     {
       title: "Queue Depth",
       value: metrics?.queueDepth?.toLocaleString() || "0",
-      change: "~3.5 min",
+      change: metrics?.lastGeneration ? `Last: ${new Date(metrics.lastGeneration).toLocaleTimeString()}` : "No recent activity",
       changeType: "info",
       icon: "fas fa-clock",
       color: "primary",

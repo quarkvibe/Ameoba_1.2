@@ -1,21 +1,24 @@
 import { useState } from "react";
 
 const navigation = [
-  { id: 'overview', name: 'Overview', icon: 'fas fa-chart-line', active: true },
-  { id: 'campaigns', name: 'Campaigns', icon: 'fas fa-envelope', active: false },
-  { id: 'configuration', name: 'Configuration', icon: 'fas fa-cog', active: false },
-  { id: 'queue', name: 'Queue Monitor', icon: 'fas fa-clock', active: false },
-  { id: 'analytics', name: 'Analytics', icon: 'fas fa-chart-bar', active: false },
-  { id: 'logs', name: 'Logs', icon: 'fas fa-file-alt', active: false },
-  { id: 'agent', name: 'Agent Brain', icon: 'fas fa-brain', active: false },
+  { id: 'overview', name: 'Overview', icon: 'fas fa-chart-line' },
+  { id: 'generation', name: 'Horoscope Generation', icon: 'fas fa-star' },
+  { id: 'astronomy', name: 'Astronomy Data', icon: 'fas fa-satellite' },
+  { id: 'queue', name: 'Queue Monitor', icon: 'fas fa-clock' },
+  { id: 'logs', name: 'System Logs', icon: 'fas fa-file-alt' },
+  { id: 'files', name: 'File Management', icon: 'fas fa-folder' },
+  { id: 'health', name: 'Health Monitor', icon: 'fas fa-heartbeat' },
+  { id: 'configuration', name: 'Configuration', icon: 'fas fa-cog' },
 ];
 
-export default function Sidebar() {
-  const [activeItem, setActiveItem] = useState('overview');
+interface SidebarProps {
+  activeView: string;
+  onViewChange: (view: string) => void;
+}
 
+export default function Sidebar({ activeView, onViewChange }: SidebarProps) {
   const handleNavigation = (itemId: string) => {
-    setActiveItem(itemId);
-    // TODO: Implement view switching based on navigation
+    onViewChange(itemId);
     console.log('Navigating to:', itemId);
   };
 
@@ -30,7 +33,7 @@ export default function Sidebar() {
           </div>
           <div>
             <h1 className="text-lg font-semibold text-foreground">Amoeba</h1>
-            <p className="text-xs text-muted-foreground">Email Operations</p>
+            <p className="text-xs text-muted-foreground">Horoscope Service</p>
           </div>
         </div>
 
@@ -41,7 +44,7 @@ export default function Sidebar() {
               key={item.id}
               onClick={() => handleNavigation(item.id)}
               className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-left ${
-                activeItem === item.id
+                activeView === item.id
                   ? 'bg-primary text-primary-foreground'
                   : 'text-muted-foreground hover:text-foreground hover:bg-muted'
               }`}

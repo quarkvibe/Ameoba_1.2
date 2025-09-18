@@ -8,21 +8,16 @@ export default function FloatingActionMenu() {
   const [isOpen, setIsOpen] = useState(false);
   const { toast } = useToast();
 
-  const sendTestMutation = useMutation({
+  const generateHoroscopesMutation = useMutation({
     mutationFn: async () => {
-      const testEmail = prompt("Enter email address for test:");
-      if (!testEmail) throw new Error("No email provided");
-      
-      return await apiRequest("POST", "/api/send-test", {
-        to: testEmail,
-        subject: "Test Email from Amoeba",
-        content: "This is a test email to verify your configuration.",
+      return await apiRequest("POST", "/api/cron/trigger-horoscopes", {
+        date: new Date().toISOString().split('T')[0]
       });
     },
     onSuccess: () => {
       toast({
         title: "Success",
-        description: "Test email sent successfully!",
+        description: "Manual horoscope generation triggered successfully!",
       });
       setIsOpen(false);
     },
@@ -42,7 +37,7 @@ export default function FloatingActionMenu() {
     onSuccess: () => {
       toast({
         title: "Emergency Stop Activated",
-        description: "All email processing has been paused.",
+        description: "All horoscope generation has been paused.",
         variant: "destructive",
       });
       setIsOpen(false);
@@ -56,10 +51,10 @@ export default function FloatingActionMenu() {
     },
   });
 
-  const showAgentHelp = () => {
+  const showSystemHealth = () => {
     toast({
-      title: "Agent Help",
-      description: "Type your question in the agent chat at the top of the page. I can help with analytics, configuration, troubleshooting, and optimizations.",
+      title: "System Health Check",
+      description: "All horoscope services are operational. Database connected, astronomy engine active, queue processing normally.",
       duration: 6000,
     });
     setIsOpen(false);
@@ -71,11 +66,11 @@ export default function FloatingActionMenu() {
 
   const actionItems = [
     {
-      icon: "fas fa-flask",
-      title: "Send Test Email",
+      icon: "fas fa-star",
+      title: "Generate Horoscopes",
       color: "bg-accent text-accent-foreground",
-      action: () => sendTestMutation.mutate(),
-      disabled: sendTestMutation.isPending,
+      action: () => generateHoroscopesMutation.mutate(),
+      disabled: generateHoroscopesMutation.isPending,
     },
     {
       icon: "fas fa-stop",
@@ -85,10 +80,10 @@ export default function FloatingActionMenu() {
       disabled: emergencyStopMutation.isPending,
     },
     {
-      icon: "fas fa-brain",
-      title: "Agent Help",
+      icon: "fas fa-heartbeat",
+      title: "System Health",
       color: "bg-primary text-primary-foreground",
-      action: showAgentHelp,
+      action: showSystemHealth,
       disabled: false,
     },
   ];

@@ -9,6 +9,8 @@ interface ActivityItem {
   details?: string;
   timestamp: string;
   status: string;
+  zodiacSign?: string;
+  generationType?: string;
 }
 
 export default function LiveActivityFeed() {
@@ -21,15 +23,15 @@ export default function LiveActivityFeed() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'delivered':
-      case 'sent':
+      case 'generated':
       case 'completed':
+      case 'published':
         return 'text-accent border-accent';
       case 'failed':
-      case 'bounced':
+      case 'error':
         return 'text-destructive border-destructive';
+      case 'generating':
       case 'processing':
-      case 'retrying':
         return 'text-yellow-500 border-yellow-500';
       default:
         return 'text-muted-foreground border-muted-foreground';
@@ -38,16 +40,16 @@ export default function LiveActivityFeed() {
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'delivered':
-      case 'sent':
+      case 'generated':
       case 'completed':
-        return 'fas fa-check-circle';
+      case 'published':
+        return 'fas fa-star';
       case 'failed':
-      case 'bounced':
+      case 'error':
         return 'fas fa-times-circle';
+      case 'generating':
       case 'processing':
-      case 'retrying':
-        return 'fas fa-exclamation-triangle';
+        return 'fas fa-magic';
       case 'queued':
         return 'fas fa-clock';
       default:
@@ -121,10 +123,10 @@ export default function LiveActivityFeed() {
           ) : (
             // Empty state
             <div className="text-center py-8">
-              <i className="fas fa-inbox text-muted-foreground text-2xl mb-3"></i>
+              <i className="fas fa-star text-muted-foreground text-2xl mb-3"></i>
               <p className="text-muted-foreground">No recent activity</p>
               <p className="text-xs text-muted-foreground mt-1">
-                Activity will appear here as emails are processed
+                Activity will appear here as horoscopes are generated
               </p>
             </div>
           )}

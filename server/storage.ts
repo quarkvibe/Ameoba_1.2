@@ -376,7 +376,7 @@ export class DatabaseStorage implements IStorage {
       .from(horoscopes)
       .innerJoin(zodiacSigns, eq(horoscopes.zodiacSignId, zodiacSigns.id))
       .where(and(
-        eq(zodiacSigns.name, signName.toLowerCase()),
+        eq(zodiacSigns.id, signName.toLowerCase()),
         eq(horoscopes.date, date)
       ));
     return horoscope?.horoscopes;

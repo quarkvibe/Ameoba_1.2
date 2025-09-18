@@ -21,6 +21,54 @@ import { integrationService } from "./services/integrationService";
 import { astronomyService } from "./services/astronomyService";
 import { WebSocketServer, WebSocket } from "ws";
 
+// API Key Authentication Middleware
+async function requireApiKey(req: any, res: any, next: any, permissions: string[] = []) {
+  try {
+    const authHeader = req.headers.authorization;
+    
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ 
+        message: "Missing or invalid authorization header. Required format: 'Bearer YOUR_API_KEY'" 
+      });
+    }
+    
+    const token = authHeader.substring(7); // Remove 'Bearer ' prefix
+    const apiKey = await integrationService.validateApiKey(token);
+    
+    if (!apiKey) {
+      return res.status(401).json({ 
+        message: "Invalid or expired API key" 
+      });
+    }
+    
+    // Check permissions if required
+    for (const permission of permissions) {
+      if (!integrationService.hasPermission(apiKey, permission)) {
+        return res.status(403).json({ 
+          message: `Insufficient permissions. Required: ${permission}` 
+        });
+      }
+    }
+    
+    // Add API key info to request
+    req.apiKey = apiKey;
+    
+    // Log API usage
+    await integrationService.logApiUsage(
+      apiKey.name,
+      req.path,
+      req.method,
+      200,
+      0 // Response time will be updated later
+    );
+    
+    next();
+  } catch (error) {
+    console.error('API key validation error:', error);
+    res.status(500).json({ message: 'Authentication service error' });
+  }
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // Simple health checks BEFORE auth middleware
   app.get('/healthz', (req, res) => res.status(200).send('OK'));
@@ -108,11 +156,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // =============================================================================
-  // HOROSCOPE API ENDPOINTS (Public - No Auth Required)
+  // HOROSCOPE API ENDPOINTS (API Key Required)
   // =============================================================================
 
   // Get today's horoscopes for all zodiac signs
-  app.get("/api/horoscopes/today", async (req, res) => {
+  app.get("/api/horoscopes/today", (req, res, next) => requireApiKey(req, res, next, ['read:horoscopes']), async (req, res) => {
     try {
       const today = new Date().toISOString().split('T')[0];
       const horoscopes = await horoscopeService.getAllHoroscopesForDate(today);
@@ -128,7 +176,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get horoscope for a specific zodiac sign
-  app.get("/api/horoscopes/:sign", async (req, res) => {
+  app.get("/api/horoscopes/:sign", (req, res, next) => requireApiKey(req, res, next, ['read:horoscopes']), async (req, res) => {
     try {
       const { sign } = req.params;
       const today = new Date().toISOString().split('T')[0];
@@ -562,6 +610,72 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error updating system config:", error);
       res.status(500).json({ message: "Failed to update system config" });
+    }
+  });
+
+  // =============================================================================
+  // API KEY MANAGEMENT (Auth Required)
+  // =============================================================================
+
+  // Get all API keys for the current user
+  app.get("/api/api-keys", isAuthenticated, async (req, res) => {
+    try {
+      const apiKeys = await integrationService.getApiKeys();
+      // Don't return the actual key hash, only metadata
+      const safeApiKeys = apiKeys.map(key => ({
+        id: key.id,
+        name: key.name,
+        permissions: key.permissions,
+        isActive: key.isActive,
+        lastUsed: key.lastUsed,
+        expiresAt: key.expiresAt,
+        createdAt: key.createdAt,
+        updatedAt: key.updatedAt
+      }));
+      res.json(safeApiKeys);
+    } catch (error) {
+      console.error("Error fetching API keys:", error);
+      res.status(500).json({ message: "Failed to fetch API keys" });
+    }
+  });
+
+  // Generate a new API key
+  app.post("/api/api-keys", isAuthenticated, async (req, res) => {
+    try {
+      const { name, permissions } = req.body;
+      
+      if (!name || !permissions || !Array.isArray(permissions)) {
+        return res.status(400).json({ 
+          message: "Name and permissions array are required" 
+        });
+      }
+
+      const result = await integrationService.generateApiKey(name, permissions);
+      
+      res.json({
+        message: "API key generated successfully",
+        apiKey: {
+          id: result.apiKey.id,
+          name: result.apiKey.name,
+          permissions: result.apiKey.permissions,
+          key: result.key // Only return the actual key on creation
+        }
+      });
+    } catch (error) {
+      console.error("Error generating API key:", error);
+      res.status(500).json({ message: "Failed to generate API key" });
+    }
+  });
+
+  // Revoke an API key
+  app.delete("/api/api-keys/:id", isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      await integrationService.revokeApiKey(id);
+      res.json({ message: "API key revoked successfully" });
+    } catch (error) {
+      console.error("Error revoking API key:", error);
+      res.status(500).json({ message: "Failed to revoke API key" });
     }
   });
 

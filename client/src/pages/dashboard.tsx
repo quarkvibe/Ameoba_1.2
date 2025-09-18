@@ -17,6 +17,7 @@ import ContentConfiguration from "@/components/dashboard/ContentConfiguration";
 import DataSourceManager from "@/components/dashboard/DataSourceManager";
 import OutputConfiguration from "@/components/dashboard/OutputConfiguration";
 import ScheduleManager from "@/components/dashboard/ScheduleManager";
+import ApiSettings from "@/components/dashboard/ApiSettings";
 import { useWebSocket } from "@/hooks/useWebSocket";
 
 export default function Dashboard() {
@@ -95,6 +96,8 @@ export default function Dashboard() {
         return <FileManagement />;
       case "health":
         return <HealthMonitor />;
+      case "api-settings":
+        return <ApiSettings />;
       case "configuration":
         return (
           <div className="space-y-6">
@@ -103,7 +106,7 @@ export default function Dashboard() {
               System Settings
             </h2>
             <p className="text-muted-foreground">
-              Configure system settings, API keys, and service parameters.
+              Configure system settings and service parameters.
             </p>
             {/* Future system configuration components will go here */}
             <div className="text-center py-12 text-muted-foreground">

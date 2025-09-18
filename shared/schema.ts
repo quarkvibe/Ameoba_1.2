@@ -264,6 +264,7 @@ export const userSunChartsRelations = relations(userSunCharts, ({ one }) => ({
 //   }),
 // }));
 
+
 // Insert schemas
 export const insertEmailConfigurationSchema = createInsertSchema(emailConfigurations).omit({
   id: true,
@@ -385,6 +386,191 @@ export const insertIntegrationLogSchema = createInsertSchema(integrationLogs).om
   createdAt: true,
 });
 
+// ===============================================
+// UNIVERSAL AI CONTENT PLATFORM TABLES
+// ===============================================
+
+// Content templates for AI generation
+export const contentTemplates = pgTable("content_templates", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id),
+  name: varchar("name", { length: 200 }).notNull(),
+  description: text("description"),
+  category: varchar("category", { length: 100 }), // 'horoscope', 'blog', 'newsletter', etc.
+  aiPrompt: text("ai_prompt").notNull(),
+  systemPrompt: text("system_prompt"),
+  outputFormat: varchar("output_format", { length: 50 }).default('text'), // 'text', 'json', 'markdown', 'html'
+  variables: jsonb("variables"), // Array of variable names expected in prompt
+  settings: jsonb("settings"), // AI model settings, temperature, etc.
+  isActive: boolean("is_active").default(true),
+  isPublic: boolean("is_public").default(false),
+  usageCount: integer("usage_count").default(0),
+  lastUsed: timestamp("last_used"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Data sources for content generation
+export const dataSources = pgTable("data_sources", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id),
+  name: varchar("name", { length: 200 }).notNull(),
+  description: text("description"),
+  type: varchar("type", { length: 50 }).notNull(), // 'api', 'database', 'file', 'astronomy', 'webhook', 'rss'
+  config: jsonb("config").notNull(), // Connection configuration (endpoint, headers, auth, etc.)
+  parsingRules: jsonb("parsing_rules").notNull(), // JSONPath, mappings, transformations
+  schedule: varchar("schedule"), // Cron expression for automatic data refresh
+  isActive: boolean("is_active").default(true),
+  lastFetch: timestamp("last_fetch"),
+  lastError: text("last_error"),
+  fetchCount: integer("fetch_count").default(0),
+  errorCount: integer("error_count").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Output channels for content distribution
+export const outputChannels = pgTable("output_channels", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id),
+  name: varchar("name", { length: 200 }).notNull(),
+  description: text("description"),
+  type: varchar("type", { length: 50 }).notNull(), // 'api', 'email', 'webhook', 'file', 'database', 'redis', 's3'
+  config: jsonb("config").notNull(), // Channel-specific configuration
+  outputFormat: jsonb("output_format").notNull(), // Content formatting and template
+  isActive: boolean("is_active").default(true),
+  lastUsed: timestamp("last_used"),
+  totalDeliveries: integer("total_deliveries").default(0),
+  failureCount: integer("failure_count").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Distribution rules for conditional routing
+export const distributionRules = pgTable("distribution_rules", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id),
+  name: varchar("name", { length: 200 }).notNull(),
+  description: text("description"),
+  conditions: jsonb("conditions").notNull(), // Array of condition objects
+  channels: jsonb("channels").notNull(), // Array of output channel IDs
+  priority: integer("priority").default(0),
+  isActive: boolean("is_active").default(true),
+  appliedCount: integer("applied_count").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Scheduled content generation jobs
+export const scheduledJobs = pgTable("scheduled_jobs", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id),
+  name: varchar("name", { length: 200 }).notNull(),
+  description: text("description"),
+  templateId: uuid("template_id").references(() => contentTemplates.id).notNull(),
+  cronExpression: varchar("cron_expression", { length: 100 }).notNull(),
+  timezone: varchar("timezone", { length: 50 }).default('UTC'),
+  isActive: boolean("is_active").default(true),
+  nextRun: timestamp("next_run"),
+  lastRun: timestamp("last_run"),
+  lastStatus: varchar("last_status", { length: 20 }), // 'success', 'error', 'running'
+  lastError: text("last_error"),
+  totalRuns: integer("total_runs").default(0),
+  successCount: integer("success_count").default(0),
+  errorCount: integer("error_count").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Generated content history
+export const generatedContent = pgTable("generated_content", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id),
+  templateId: uuid("template_id").references(() => contentTemplates.id),
+  jobId: uuid("job_id").references(() => scheduledJobs.id),
+  title: varchar("title", { length: 500 }),
+  content: text("content").notNull(),
+  metadata: jsonb("metadata"), // Source data, generation parameters, etc.
+  distributionStatus: jsonb("distribution_status"), // Status per output channel
+  generatedAt: timestamp("generated_at").defaultNow(),
+}, (table) => [
+  index("idx_generated_content_template").on(table.templateId),
+  index("idx_generated_content_job").on(table.jobId),
+  index("idx_generated_content_date").on(table.generatedAt),
+]);
+
+// Template to data source relationships (many-to-many)
+export const templateDataSources = pgTable("template_data_sources", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  templateId: uuid("template_id").references(() => contentTemplates.id).notNull(),
+  dataSourceId: uuid("data_source_id").references(() => dataSources.id).notNull(),
+  variableMapping: jsonb("variable_mapping"), // How data source fields map to template variables
+  isRequired: boolean("is_required").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_template_datasources_template").on(table.templateId),
+  index("idx_template_datasources_datasource").on(table.dataSourceId),
+]);
+
+// Template to output channel relationships (many-to-many)
+export const templateOutputChannels = pgTable("template_output_channels", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  templateId: uuid("template_id").references(() => contentTemplates.id).notNull(),
+  channelId: uuid("channel_id").references(() => outputChannels.id).notNull(),
+  isEnabled: boolean("is_enabled").default(true),
+  channelConfig: jsonb("channel_config"), // Override channel settings for this template
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_template_channels_template").on(table.templateId),
+  index("idx_template_channels_channel").on(table.channelId),
+]);
+
+// Insert schemas for new tables
+export const insertContentTemplateSchema = createInsertSchema(contentTemplates).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertDataSourceSchema = createInsertSchema(dataSources).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertOutputChannelSchema = createInsertSchema(outputChannels).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertDistributionRuleSchema = createInsertSchema(distributionRules).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertScheduledJobSchema = createInsertSchema(scheduledJobs).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertGeneratedContentSchema = createInsertSchema(generatedContent).omit({
+  id: true,
+  generatedAt: true,
+});
+
+export const insertTemplateDataSourceSchema = createInsertSchema(templateDataSources).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertTemplateOutputChannelSchema = createInsertSchema(templateOutputChannels).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Types
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
@@ -420,3 +606,105 @@ export type Webhook = typeof webhooks.$inferSelect;
 export type InsertWebhook = z.infer<typeof insertWebhookSchema>;
 export type IntegrationLog = typeof integrationLogs.$inferSelect;
 export type InsertIntegrationLog = z.infer<typeof insertIntegrationLogSchema>;
+
+// Universal content platform relations
+export const contentTemplatesRelations = relations(contentTemplates, ({ one, many }) => ({
+  user: one(users, {
+    fields: [contentTemplates.userId],
+    references: [users.id],
+  }),
+  dataSources: many(templateDataSources),
+  outputChannels: many(templateOutputChannels),
+  scheduledJobs: many(scheduledJobs),
+  generatedContent: many(generatedContent),
+}));
+
+export const dataSourcesRelations = relations(dataSources, ({ one, many }) => ({
+  user: one(users, {
+    fields: [dataSources.userId],
+    references: [users.id],
+  }),
+  templates: many(templateDataSources),
+}));
+
+export const outputChannelsRelations = relations(outputChannels, ({ one, many }) => ({
+  user: one(users, {
+    fields: [outputChannels.userId],
+    references: [users.id],
+  }),
+  templates: many(templateOutputChannels),
+}));
+
+export const distributionRulesRelations = relations(distributionRules, ({ one }) => ({
+  user: one(users, {
+    fields: [distributionRules.userId],
+    references: [users.id],
+  }),
+}));
+
+export const scheduledJobsRelations = relations(scheduledJobs, ({ one, many }) => ({
+  user: one(users, {
+    fields: [scheduledJobs.userId],
+    references: [users.id],
+  }),
+  template: one(contentTemplates, {
+    fields: [scheduledJobs.templateId],
+    references: [contentTemplates.id],
+  }),
+  generatedContent: many(generatedContent),
+}));
+
+export const generatedContentRelations = relations(generatedContent, ({ one }) => ({
+  user: one(users, {
+    fields: [generatedContent.userId],
+    references: [users.id],
+  }),
+  template: one(contentTemplates, {
+    fields: [generatedContent.templateId],
+    references: [contentTemplates.id],
+  }),
+  job: one(scheduledJobs, {
+    fields: [generatedContent.jobId],
+    references: [scheduledJobs.id],
+  }),
+}));
+
+export const templateDataSourcesRelations = relations(templateDataSources, ({ one }) => ({
+  template: one(contentTemplates, {
+    fields: [templateDataSources.templateId],
+    references: [contentTemplates.id],
+  }),
+  dataSource: one(dataSources, {
+    fields: [templateDataSources.dataSourceId],
+    references: [dataSources.id],
+  }),
+}));
+
+export const templateOutputChannelsRelations = relations(templateOutputChannels, ({ one }) => ({
+  template: one(contentTemplates, {
+    fields: [templateOutputChannels.templateId],
+    references: [contentTemplates.id],
+  }),
+  outputChannel: one(outputChannels, {
+    fields: [templateOutputChannels.channelId],
+    references: [outputChannels.id],
+  }),
+}));
+
+// Universal content platform types
+export type ContentTemplate = typeof contentTemplates.$inferSelect;
+export type InsertContentTemplate = z.infer<typeof insertContentTemplateSchema>;
+export type DataSource = typeof dataSources.$inferSelect;
+export type InsertDataSource = z.infer<typeof insertDataSourceSchema>;
+export type OutputChannel = typeof outputChannels.$inferSelect;
+export type InsertOutputChannel = z.infer<typeof insertOutputChannelSchema>;
+export type DistributionRule = typeof distributionRules.$inferSelect;
+export type InsertDistributionRule = z.infer<typeof insertDistributionRuleSchema>;
+export type ScheduledJob = typeof scheduledJobs.$inferSelect;
+export type InsertScheduledJob = z.infer<typeof insertScheduledJobSchema>;
+export type GeneratedContent = typeof generatedContent.$inferSelect;
+export type InsertGeneratedContent = z.infer<typeof insertGeneratedContentSchema>;
+export type TemplateDataSource = typeof templateDataSources.$inferSelect;
+export type InsertTemplateDataSource = z.infer<typeof insertTemplateDataSourceSchema>;
+export type TemplateOutputChannel = typeof templateOutputChannels.$inferSelect;
+export type InsertTemplateOutputChannel = z.infer<typeof insertTemplateOutputChannelSchema>;

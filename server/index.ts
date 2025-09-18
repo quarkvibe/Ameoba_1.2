@@ -70,7 +70,11 @@ app.use((req, res, next) => {
   }, () => {
     log(`serving on port ${port}`);
     
-    // Start the automated horoscope cron service
-    cronService.start();
+    // Start the automated horoscope cron service (single instance in production)
+    if (process.env.ENABLE_CRON !== 'false') {
+      cronService.start();
+    } else {
+      console.log('🔒 Cron service disabled via ENABLE_CRON=false (multi-instance safety)');
+    }
   });
 })();

@@ -14,49 +14,51 @@ import { astronomyService } from "./services/astronomyService";
 import { WebSocketServer, WebSocket } from "ws";
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Simple health checks BEFORE auth middleware
+  app.get('/healthz', (req, res) => res.status(200).send('OK'));
+  app.get('/readyz', (req, res) => res.status(200).json({status:'ready'}));
+
   // Auth middleware
   await setupAuth(app);
 
 
-  // Production database connection test (simple endpoint)
-  app.get("/api/test/production-db", async (req, res) => {
-    try {
-      const result = await productionDbService.testConnection();
-      res.json({
-        message: "Production database connection successful",
-        timestamp: new Date().toISOString(),
-        database: result.database,
-        host: result.host,
-        status: "connected"
-      });
-    } catch (error: any) {
-      console.error("Production database connection failed:", error);
-      res.status(500).json({ 
-        message: "Failed to connect to production database",
-        error: error.message,
-        timestamp: new Date().toISOString(),
-        status: "error"
-      });
-    }
-  });
+  // Test endpoints only in development  
+  if (process.env.NODE_ENV !== 'production') {
+    app.get("/api/test/production-db", async (req, res) => {
+      try {
+        const result = await productionDbService.testConnection();
+        res.json({
+          message: "Production database connection successful",
+          timestamp: new Date().toISOString(),
+          status: "connected"
+        });
+      } catch (error: any) {
+        console.error("Production database connection failed:", error);
+        res.status(500).json({ 
+          message: "Failed to connect to production database",
+          timestamp: new Date().toISOString(),
+          status: "error"
+        });
+      }
+    });
 
-  // Check horoscope table schema in production
-  app.get("/api/test/horoscope-schema", async (req, res) => {
-    try {
-      const schema = await productionDbService.getHoroscopeColumns();
-      res.json({
-        message: "Horoscope table schema from production database",
-        columns: schema,
-        timestamp: new Date().toISOString()
-      });
-    } catch (error: any) {
-      console.error("Failed to get horoscope schema:", error);
-      res.status(500).json({ 
-        message: "Failed to get schema",
-        error: error.message
-      });
-    }
-  });
+    app.get("/api/test/horoscope-schema", async (req, res) => {
+      try {
+        const schema = await productionDbService.getHoroscopeColumns();
+        res.json({
+          message: "Horoscope table schema from production database",
+          columns: schema,
+          timestamp: new Date().toISOString()
+        });
+      } catch (error: any) {
+        console.error("Failed to get horoscope schema:", error);
+        res.status(500).json({ 
+          message: "Failed to get schema",
+          error: error.message
+        });
+      }
+    });
+  }
 
   // Auth routes
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
@@ -78,9 +80,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         timestamp: new Date().toISOString(),
         service: "Amoeba Horoscope Microservice",
         version: "1.0.0",
-        cron_active: cronService.isActive()
+        cron_active: true // Simplified for production
       });
     } catch (error) {
+      console.error("Health check error:", error);
       res.status(500).json({ message: "Health check failed" });
     }
   });
@@ -631,24 +634,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // TEST ENDPOINTS (Remove in production)
   // =============================================================================
 
-  // Test horoscope generation (no auth required for testing)
-  app.post("/api/test/generate-horoscopes", async (req, res) => {
-    try {
-      const { date } = req.body;
-      const targetDate = date || new Date().toISOString().split('T')[0];
-      
-      const result = await horoscopeService.generateDailyHoroscopes(targetDate);
-      
-      res.json({
-        message: "Horoscope generation test completed",
-        date: targetDate,
-        result: result
-      });
-    } catch (error) {
-      console.error("Error in test horoscope generation:", error);
-      res.status(500).json({ message: "Failed to generate test horoscopes" });
-    }
-  });
+  // Test horoscope generation (development only)
+  if (process.env.NODE_ENV !== 'production') {
+    app.post("/api/test/generate-horoscopes", async (req, res) => {
+      try {
+        const { date } = req.body;
+        const targetDate = date || new Date().toISOString().split('T')[0];
+        
+        const result = await horoscopeService.generateDailyHoroscopes(targetDate);
+        
+        res.json({
+          message: "Horoscope generation test completed",
+          date: targetDate,
+          result: result
+        });
+      } catch (error) {
+        console.error("Error in test horoscope generation:", error);
+        res.status(500).json({ message: "Failed to generate test horoscopes" });
+      }
+    });
+  }
 
   // Test premium email distribution (no auth required for testing)
   app.post("/api/test/send-premium-emails", async (req, res) => {

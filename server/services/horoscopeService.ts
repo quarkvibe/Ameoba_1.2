@@ -138,8 +138,9 @@ Generate TWO versions of the horoscope:
    - Speaks to emotions, opportunities, and life experiences
    - Provides guidance for love, career, health, and personal growth
    - Uses an encouraging, mystical tone that feels cosmic and insightful
-   - AVOID technical jargon like "19° Libra" or "trine" - instead say things like "the harmony between the stars" or "cosmic energies align"
-   - Make it readable and engaging for someone who doesn't study astrology
+   - BALANCE technical and mystical: Mention 1-2 key planetary positions (like "Venus in Leo" or "Sun opposing Mars") to give astronomical credibility, but keep most of the language poetic and accessible
+   - AVOID overdoing technical details - don't put degrees/aspects in every sentence, just sprinkle them where they add value
+   - Make it engaging for general readers while still feeling astronomically grounded
 
 2. TECHNICAL DETAILS (optional, for advanced users): A concise technical summary that includes:
    - Specific planetary positions with degrees (e.g., "Sun 19° Libra")

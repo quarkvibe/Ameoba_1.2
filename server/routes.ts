@@ -155,6 +155,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Internal dashboard endpoint for horoscopes (session auth)
+  app.get("/api/dashboard/horoscopes/today", isAuthenticated, async (req, res) => {
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const horoscopes = await horoscopeService.getAllHoroscopesForDate(today);
+      
+      res.json({
+        date: today,
+        horoscopes: horoscopes || []
+      });
+    } catch (error) {
+      console.error("Error fetching today's horoscopes:", error);
+      res.status(500).json({ message: "Failed to fetch horoscopes" });
+    }
+  });
+
   // =============================================================================
   // HOROSCOPE API ENDPOINTS (API Key Required)
   // =============================================================================

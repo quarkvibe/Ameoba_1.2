@@ -47,13 +47,28 @@ export default function HoroscopeGeneration() {
   const queryClient = useQueryClient();
 
   // Get today's horoscopes to check status
-  const { data: todayHoroscopes, isLoading: loadingHoroscopes } = useQuery({
-    queryKey: ["/api/horoscopes/today"],
+  const { data: todayHoroscopes, isLoading: loadingHoroscopes } = useQuery<{
+    date: string;
+    horoscopes: Array<{
+      id: string;
+      zodiacSignId: string;
+      date: string;
+      horoscope: string;
+      createdAt: string;
+      updatedAt: string;
+    }>;
+  }>({
+    queryKey: ["/api/dashboard/horoscopes/today"],
     refetchInterval: 10000, // Refresh every 10 seconds
   });
 
   // Get queue metrics for generation status
-  const { data: queueMetrics, isLoading: loadingQueue } = useQuery({
+  const { data: queueMetrics, isLoading: loadingQueue } = useQuery<{
+    pending: number;
+    processing: number;
+    completed: number;
+    failed: number;
+  }>({
     queryKey: ["/api/queue/metrics"],
     refetchInterval: 5000, // Refresh every 5 seconds
   });
@@ -67,7 +82,7 @@ export default function HoroscopeGeneration() {
         title: "Generation Started",
         description: "Manual horoscope generation has been triggered for all 12 zodiac signs.",
       });
-      queryClient.invalidateQueries({ queryKey: ["/api/horoscopes/today"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/horoscopes/today"] });
       queryClient.invalidateQueries({ queryKey: ["/api/queue/metrics"] });
     },
     onError: (error) => {
@@ -89,7 +104,7 @@ export default function HoroscopeGeneration() {
         title: "Generation Started",
         description: `Horoscope generation triggered for ${zodiacSign}.`,
       });
-      queryClient.invalidateQueries({ queryKey: ["/api/horoscopes/today"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/horoscopes/today"] });
       queryClient.invalidateQueries({ queryKey: ["/api/queue/metrics"] });
     },
     onError: (error) => {
@@ -209,7 +224,7 @@ export default function HoroscopeGeneration() {
             <Button
               variant="outline"
               onClick={() => {
-                queryClient.invalidateQueries({ queryKey: ["/api/horoscopes/today"] });
+                queryClient.invalidateQueries({ queryKey: ["/api/dashboard/horoscopes/today"] });
                 queryClient.invalidateQueries({ queryKey: ["/api/queue/metrics"] });
               }}
               data-testid="button-refresh"

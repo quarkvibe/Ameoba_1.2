@@ -113,45 +113,30 @@ export class HoroscopeService {
       // Get zodiac sign details from our internal knowledge
       const signDetails = this.getZodiacSignDetails(zodiacSign.name);
       
-      const prompt = `As a professional astrologer, generate a daily horoscope for ${zodiacSign.name.toUpperCase()} for ${date}.
+      // Simplify planetary data for the prompt
+      const planetList = (astrologyData.planetaryPositions as any[])
+        .map((p: any) => `${p.planet} in ${p.sign}`)
+        .filter((p: string) => p.includes('in'))
+        .join(', ');
+      
+      const prompt = `Generate a mystical daily horoscope for ${zodiacSign.name.toUpperCase()} for ${date}.
 
-ZODIAC SIGN DETAILS:
-- Sign: ${zodiacSign.name} (${signDetails.symbol})
-- Element: ${signDetails.element}
-- Quality: ${signDetails.quality}
-- Date Range: ${signDetails.dateRange}
-- Ruling Planet: ${signDetails.rulingPlanet}
-- Key Traits: ${signDetails.keyTraits.join(', ')}
-
-CURRENT PLANETARY POSITIONS:
-${JSON.stringify(astrologyData.planetaryPositions, null, 2)}
-
+ZODIAC: ${zodiacSign.name} (${signDetails.element} sign, ${signDetails.quality})
 MOON PHASE: ${astrologyData.moonPhase}
+KEY PLANETS: ${planetList}
 
-PLANETARY INFLUENCES FOR ${zodiacSign.name.toUpperCase()}:
-${planetaryInfluences}
+Create a 150-200 word horoscope with:
+- Mystical, poetic language that feels cosmic and insightful
+- Guidance for love, career, health, and personal growth
+- Mention 1-2 key planetary positions (like "Venus in Leo") for astronomical credibility
+- Keep it accessible and engaging, not overly technical
 
-Generate TWO versions of the horoscope:
-
-1. MAIN HOROSCOPE (150-200 words): Create an accessible, mystical, and engaging horoscope that:
-   - Uses the planetary data to inform the guidance, but weaves it naturally into the narrative
-   - Speaks to emotions, opportunities, and life experiences
-   - Provides guidance for love, career, health, and personal growth
-   - Uses an encouraging, mystical tone that feels cosmic and insightful
-   - BALANCE technical and mystical: Mention 1-2 key planetary positions (like "Venus in Leo" or "Sun opposing Mars") to give astronomical credibility, but keep most of the language poetic and accessible
-   - AVOID overdoing technical details - don't put degrees/aspects in every sentence, just sprinkle them where they add value
-   - Make it engaging for general readers while still feeling astronomically grounded
-
-2. TECHNICAL DETAILS (optional, for advanced users): A concise technical summary that includes:
-   - Specific planetary positions with degrees (e.g., "Sun 19° Libra")
-   - Key aspects (trine, opposition, conjunction, square)
-   - Relevant house placements if applicable
-   - Moon phase and any significant transits
+Also provide brief technical details for advanced users (planetary degrees, aspects, transits).
 
 Format as JSON:
 {
-  "content": "main horoscope text here (mystical and accessible)...",
-  "technicalDetails": "technical planetary information here..."
+  "content": "mystical horoscope with sprinkled planetary mentions...",
+  "technicalDetails": "concise technical summary with degrees and aspects..."
 }`;
 
       const response = await openai.chat.completions.create({

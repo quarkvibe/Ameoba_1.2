@@ -4,6 +4,9 @@ interface WebSocketMessage {
   type: string;
   data?: any;
   message?: string;
+  level?: string;
+  output?: string;
+  error?: string;
 }
 
 interface UseWebSocketOptions {

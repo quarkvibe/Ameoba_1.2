@@ -26,15 +26,15 @@ export default function Terminal() {
       if (message.type === 'log') {
         const newLog: LogEntry = {
           timestamp: new Date().toISOString(),
-          level: message.level || 'info',
-          message: message.message,
+          level: (message.level as LogEntry['level']) || 'info',
+          message: message.message || '',
         };
         setLogs((prev) => [...prev.slice(-99), newLog]);
       } else if (message.type === 'command_output') {
         const outputLog: LogEntry = {
           timestamp: new Date().toISOString(),
           level: 'output',
-          message: message.output,
+          message: message.output || '',
         };
         setLogs((prev) => [...prev.slice(-99), outputLog]);
         setIsExecuting(false);
@@ -42,7 +42,7 @@ export default function Terminal() {
         const errorLog: LogEntry = {
           timestamp: new Date().toISOString(),
           level: 'error',
-          message: message.error,
+          message: message.error || 'Command execution failed',
         };
         setLogs((prev) => [...prev.slice(-99), errorLog]);
         setIsExecuting(false);

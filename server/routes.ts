@@ -1306,8 +1306,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     },
     generate: async () => {
       try {
-        await cronService.triggerHoroscopeGeneration();
-        return '✓ Horoscope generation triggered for all 12 zodiac signs';
+        const result = await cronService.triggerHoroscopeGeneration();
+        return `✓ Horoscope generation triggered successfully!\nStarted generation for all 12 zodiac signs.`;
       } catch (error: any) {
         throw new Error(`Generation failed: ${error.message}`);
       }

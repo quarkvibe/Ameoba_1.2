@@ -33,18 +33,18 @@ export default function EnvironmentManager() {
   const [showValues, setShowValues] = useState<Record<string, boolean>>({});
   
   // Fetch environment variables
-  const { data: envData, isLoading } = useQuery({
+  const { data: envData, isLoading } = useQuery<any>({
     queryKey: ['/api/environment/variables'],
   });
   
   // Fetch .env file content
-  const { data: envFileData } = useQuery({
+  const { data: envFileData } = useQuery<any>({
     queryKey: ['/api/environment/file'],
     enabled: viewMode === 'file',
   });
   
   // Fetch validation status
-  const { data: validation } = useQuery({
+  const { data: validation } = useQuery<any>({
     queryKey: ['/api/environment/validate'],
   });
   
@@ -113,12 +113,12 @@ export default function EnvironmentManager() {
   };
   
   // Group variables by category
-  const groupedVars = envData?.variables?.reduce((acc: any, v: any) => {
+  const groupedVars = (envData?.variables || []).reduce((acc: any, v: any) => {
     const category = v.category || 'other';
     if (!acc[category]) acc[category] = [];
     acc[category].push(v);
     return acc;
-  }, {}) || {};
+  }, {} as Record<string, any>);
   
   const categoryOrder = ['core', 'ai', 'email', 'phone', 'deployment', 'other'];
   
@@ -195,10 +195,10 @@ export default function EnvironmentManager() {
                           <p className="text-xs text-muted-foreground mt-1">{v.description}</p>
                         </div>
                         
-                        {editingKey === v.key ? (
+                          {editingKey === v.key ? (
                           <div className="flex gap-2">
-                            <Button size="sm" onClick={() => setEditingKey(null)}>
-                              <X className="h-4 w-4" />
+                            <Button size="sm" variant="ghost" onClick={() => setEditingKey(null)}>
+                              ×
                             </Button>
                           </div>
                         ) : (

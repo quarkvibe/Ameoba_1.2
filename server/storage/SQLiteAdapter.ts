@@ -26,7 +26,7 @@ import { IStorage, User, AICredential, EmailServiceCredential, PhoneServiceCrede
 
 export class SQLiteAdapter implements IStorage {
   
-  private db: Database.Database;
+  private db!: Database.Database;
   private dbPath: string;
   
   constructor(dbPath?: string) {

@@ -76,24 +76,25 @@ export class ContentGenerationService {
       const aiResult = await this.callAI(credential, template, prompt);
 
       // 5. Process output through pipeline
+      const settings = template.settings as any || {};
       const pipelineConfig: PipelineConfig = {
-        parseFormat: template.outputFormat || 'text',
+        parseFormat: (template.outputFormat as any) || 'text',
         validateOutput: true,
-        safetyCheck: template.settings?.safetyCheck !== false,
-        qualityScore: template.settings?.qualityScore !== false,
-        cleanup: template.settings?.cleanup !== false,
+        safetyCheck: settings.safetyCheck !== false,
+        qualityScore: settings.qualityScore !== false,
+        cleanup: settings.cleanup !== false,
         formatting: {
           removeEmptyLines: true,
           trimWhitespace: true,
           fixPunctuation: true,
           removeDuplicateSpaces: true,
         },
-        requireApproval: template.settings?.requireApproval || false,
-        autoApprovalRules: template.settings?.autoApprovalRules || [],
-        minLength: template.settings?.minLength,
-        maxLength: template.settings?.maxLength,
-        requiredKeywords: template.settings?.requiredKeywords,
-        forbiddenKeywords: template.settings?.forbiddenKeywords,
+        requireApproval: settings.requireApproval || false,
+        autoApprovalRules: settings.autoApprovalRules || [],
+        minLength: settings.minLength,
+        maxLength: settings.maxLength,
+        requiredKeywords: settings.requiredKeywords,
+        forbiddenKeywords: settings.forbiddenKeywords,
       };
 
       const pipelineResult = await outputPipelineService.processOutput(
@@ -245,8 +246,8 @@ export class ContentGenerationService {
         // Execute each tool call
         for (const toolCall of toolCalls) {
           toolCallCount++;
-          const toolName = toolCall.function.name;
-          const toolArgs = JSON.parse(toolCall.function.arguments);
+          const toolName = (toolCall as any).function?.name;
+          const toolArgs = JSON.parse((toolCall as any).function?.arguments || '{}');
           
           activityMonitor.logActivity('debug', `🔧 Tool: ${toolName} with args: ${JSON.stringify(toolArgs).substring(0, 100)}`);
           toolsUsed.push(toolName);
@@ -481,9 +482,7 @@ export class ContentGenerationService {
           cost,
           duration: 0,
           timestamp: new Date().toISOString(),
-          toolsUsed: toolsUsed.length > 0 ? toolsUsed : undefined,
-          toolCallCount: toolCallCount > 0 ? toolCallCount : undefined,
-        },
+        } as any,
       };
 
     } catch (error: any) {

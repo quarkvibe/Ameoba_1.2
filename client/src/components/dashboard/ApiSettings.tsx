@@ -54,7 +54,7 @@ export default function ApiSettings() {
   const [showGeneratedKey, setShowGeneratedKey] = useState(false);
 
   // Fetch API keys
-  const { data: apiKeys = [], isLoading, refetch } = useQuery({
+  const { data: apiKeys = [], isLoading, refetch } = useQuery<ApiKey[]>({
     queryKey: ['/api/api-keys'],
   });
 

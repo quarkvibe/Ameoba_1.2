@@ -27,17 +27,17 @@ export default function SystemTesting() {
   const [running, setRunning] = useState(false);
   
   // Fetch test suites
-  const { data: suites } = useQuery({
+  const { data: suites } = useQuery<any>({
     queryKey: ['/api/testing/suites'],
   });
   
   // Fetch logs
-  const { data: logsData } = useQuery({
+  const { data: logsData } = useQuery<any>({
     queryKey: ['/api/testing/logs'],
   });
   
   // Fetch diagnostics
-  const { data: diagnostics } = useQuery({
+  const { data: diagnostics } = useQuery<any>({
     queryKey: ['/api/testing/diagnostics'],
   });
   

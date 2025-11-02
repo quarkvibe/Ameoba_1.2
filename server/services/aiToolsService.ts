@@ -401,7 +401,7 @@ class AIToolsService {
         
         // Add explicit pauses
         let optimized = voiceSentences
-          .map(s => s.trim())
+          .map((s: string) => s.trim())
           .join('. <break time="700ms"/> ') + '.';
         
         // Expand abbreviations for voice

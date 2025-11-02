@@ -32,7 +32,7 @@ export default function SMSCommands() {
   const [testResult, setTestResult] = useState<any>(null);
   
   // Fetch SMS command settings
-  const { data: settings, isLoading } = useQuery({
+  const { data: settings, isLoading } = useQuery<any>({
     queryKey: ['/api/sms-commands/settings'],
   });
   

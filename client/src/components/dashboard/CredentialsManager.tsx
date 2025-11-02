@@ -68,7 +68,7 @@ function AICredentialsTab() {
   const [showKey, setShowKey] = useState<Record<string, boolean>>({});
   
   // Fetch AI credentials
-  const { data: credentials = [], isLoading } = useQuery({
+  const { data: credentials = [], isLoading } = useQuery<any[]>({
     queryKey: ['/api/credentials/ai'],
   });
   
@@ -320,7 +320,7 @@ function EmailCredentialsTab() {
   const { toast } = useToast();
   const [showDialog, setShowDialog] = useState(false);
   
-  const { data: credentials = [], isLoading } = useQuery({
+  const { data: credentials = [], isLoading } = useQuery<any[]>({
     queryKey: ['/api/credentials/email'],
   });
   
@@ -475,7 +475,7 @@ function PhoneCredentialsTab() {
   const { toast } = useToast();
   const [showDialog, setShowDialog] = useState(false);
   
-  const { data: credentials = [], isLoading } = useQuery({
+  const { data: credentials = [], isLoading } = useQuery<any[]>({
     queryKey: ['/api/credentials/phone'],
   });
   

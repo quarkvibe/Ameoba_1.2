@@ -21,17 +21,17 @@ export default function DeploymentGuide() {
   const [selectedRecommendation, setSelectedRecommendation] = useState<any>(null);
   
   // Fetch deployment analysis
-  const { data: analysis, isLoading } = useQuery({
+  const { data: analysis, isLoading } = useQuery<any>({
     queryKey: ['/api/deployment/analyze'],
   });
   
   // Fetch deployment health
-  const { data: health } = useQuery({
+  const { data: health } = useQuery<any>({
     queryKey: ['/api/deployment/health'],
   });
   
   // Fetch existing services
-  const { data: servicesData } = useQuery({
+  const { data: servicesData } = useQuery<any>({
     queryKey: ['/api/deployment/services'],
   });
   
@@ -63,7 +63,7 @@ export default function DeploymentGuide() {
       </div>
       
       {/* Deployment Health */}
-      {health && (
+      {health && health.status && (
         <Card className={
           health.status === 'optimal' ? 'border-green-500' :
           health.status === 'critical' ? 'border-red-500' :
@@ -93,7 +93,7 @@ export default function DeploymentGuide() {
                 </div>
               </div>
               
-              {health.issues && health.issues.length > 0 && (
+              {health?.issues && health.issues.length > 0 && (
                 <Alert variant="destructive">
                   <AlertTriangle className="h-4 w-4" />
                   <AlertDescription>
@@ -107,7 +107,7 @@ export default function DeploymentGuide() {
                 </Alert>
               )}
               
-              {health.recommendations && health.recommendations.length > 0 && (
+              {health?.recommendations && health.recommendations.length > 0 && (
                 <div>
                   <strong className="text-sm">Recommendations:</strong>
                   <ul className="mt-2 space-y-1 text-sm text-muted-foreground">
@@ -177,7 +177,7 @@ export default function DeploymentGuide() {
           </Card>
           
           {/* Conflicting Services */}
-          {analysis?.conflictingServices && analysis.conflictingServices.length > 0 && (
+          {analysis?.conflictingServices && Array.isArray(analysis.conflictingServices) && analysis.conflictingServices.length > 0 && (
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -205,7 +205,7 @@ export default function DeploymentGuide() {
           )}
           
           {/* Existing Services */}
-          {servicesData?.services && servicesData.services.length > 0 && (
+          {servicesData?.services && Array.isArray(servicesData.services) && servicesData.services.length > 0 && (
             <Card>
               <CardHeader>
                 <CardTitle>Detected Services</CardTitle>
@@ -241,7 +241,7 @@ export default function DeploymentGuide() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {analysis?.recommendations?.find((r: any) => r.scenario.includes('Nginx')) && (
+              {analysis?.recommendations && Array.isArray(analysis.recommendations) && analysis.recommendations.find((r: any) => r.scenario.includes('Nginx')) && (
                 <div className="space-y-4">
                   <div>
                     <strong className="text-sm">Why Use Nginx?</strong>
@@ -253,7 +253,7 @@ export default function DeploymentGuide() {
                     </ul>
                   </div>
                   
-                  {analysis.recommendations
+                  {analysis?.recommendations && analysis.recommendations
                     .filter((r: any) => r.nginxConfig)
                     .map((rec: any, i: number) => (
                       <div key={i} className="space-y-2">
@@ -304,16 +304,16 @@ export default function DeploymentGuide() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {analysis?.recommendations?.find((r: any) => r.dnsConfig) && (
+              {analysis?.recommendations && Array.isArray(analysis.recommendations) && analysis.recommendations.find((r: any) => r.dnsConfig) && (
                 <div>
                   {analysis.recommendations
                     .filter((r: any) => r.dnsConfig)
                     .map((rec: any, i: number) => (
                       <div key={i} className="space-y-4">
-                        <Alert>
-                          <Globe className="h-4 w-4" />
-                          <AlertDescription>
-                            <strong>Suggested Subdomain:</strong> {analysis.suggestedSubdomain}
+                  <Alert>
+                    <Globe className="h-4 w-4" />
+                    <AlertDescription>
+                      <strong>Suggested Subdomain:</strong> {analysis?.suggestedSubdomain || 'amoeba.yourdomain.com'}
                           </AlertDescription>
                         </Alert>
                         
@@ -375,7 +375,7 @@ export default function DeploymentGuide() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {analysis?.recommendations?.find((r: any) => r.scenario.includes('SSL')) && (
+              {analysis?.recommendations && Array.isArray(analysis.recommendations) && analysis.recommendations.find((r: any) => r.scenario.includes('SSL')) && (
                 <div className="space-y-4">
                   {analysis.recommendations
                     .filter((r: any) => r.scenario.includes('SSL'))

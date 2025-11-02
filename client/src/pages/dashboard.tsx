@@ -19,8 +19,11 @@ import OutputConfiguration from "@/components/dashboard/OutputConfiguration";
 import ScheduleManager from "@/components/dashboard/ScheduleManager";
 import ApiSettings from "@/components/dashboard/ApiSettings";
 import Terminal from "@/components/dashboard/Terminal";
-import HoroscopeViewer from "@/components/dashboard/HoroscopeViewer";
+// HoroscopeViewer removed - generic content viewer will replace it
 import { useWebSocketContext } from "@/contexts/WebSocketContext";
+import SystemHealthDashboard from "@/components/dashboard/SystemHealthDashboard";
+import LicenseManagement from "@/components/dashboard/LicenseManagement";
+import OllamaSetup from "@/components/dashboard/OllamaSetup";
 
 export default function Dashboard() {
   const { toast } = useToast();
@@ -56,8 +59,11 @@ export default function Dashboard() {
             </div>
           </div>
         );
+      case "health":
+        return <SystemHealthDashboard />;
       case "horoscopes":
-        return <HoroscopeViewer />;
+        // Horoscope viewer removed - will be replaced with generic content viewer
+        return <div className="p-8 text-center text-muted-foreground">Horoscope viewer coming soon as generic content viewer...</div>;
       case "generation":
         return <ContentGeneration />;
       case "content-config":
@@ -123,6 +129,10 @@ export default function Dashboard() {
             </div>
           </div>
         );
+      case "license":
+        return <LicenseManagement />;
+      case "ollama":
+        return <OllamaSetup />;
       default:
         return (
           <div className="space-y-6">

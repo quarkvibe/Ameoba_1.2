@@ -3,11 +3,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useWebSocketContext } from "@/contexts/WebSocketContext";
+import { useAuth } from "@/hooks/useAuth";
 
 interface LogEntry {
   timestamp: string;
-  level: 'info' | 'error' | 'warn' | 'debug' | 'command' | 'output';
+  level: 'info' | 'error' | 'warn' | 'warning' | 'debug' | 'success' | 'command' | 'output';
   message: string;
+  metadata?: any;
 }
 
 export default function Terminal() {
@@ -17,37 +19,75 @@ export default function Terminal() {
   const [commandHistory, setCommandHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [isExecuting, setIsExecuting] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
   const logsEndRef = useRef<HTMLDivElement>(null);
   const logsContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const { isConnected, sendMessage, subscribe } = useWebSocketContext();
+  const { user } = useAuth();
+
+  // Initialize connection and subscribe to activity
+  useEffect(() => {
+    if (isConnected && !isInitialized) {
+      // Subscribe to activity feed
+      sendMessage({ type: 'subscribe' });
+      
+      // Send auth if user is available
+      if (user) {
+        const userId = typeof user === 'object' && 'id' in user ? user.id : undefined;
+        if (userId) {
+          sendMessage({ type: 'auth', userId });
+        }
+      }
+      
+      setIsInitialized(true);
+    }
+  }, [isConnected, user, isInitialized, sendMessage]);
 
   useEffect(() => {
     const unsubscribe = subscribe((message) => {
-      if (message.type === 'log') {
+      // Handle different message types
+      if (message.type === 'activity') {
+        // Real-time activity from server
         const newLog: LogEntry = {
-          timestamp: new Date().toISOString(),
+          timestamp: message.timestamp || new Date().toISOString(),
           level: (message.level as LogEntry['level']) || 'info',
           message: message.message || '',
+          metadata: message.metadata,
         };
-        setLogs((prev) => [...prev.slice(-99), newLog]);
-      } else if (message.type === 'command_output') {
+        setLogs((prev) => [...prev.slice(-199), newLog]); // Keep last 200 logs
+      } 
+      else if (message.type === 'command_output') {
         const outputLog: LogEntry = {
-          timestamp: new Date().toISOString(),
+          timestamp: message.timestamp || new Date().toISOString(),
           level: 'output',
           message: message.output || '',
         };
-        setLogs((prev) => [...prev.slice(-99), outputLog]);
+        setLogs((prev) => [...prev.slice(-199), outputLog]);
         setIsExecuting(false);
-      } else if (message.type === 'command_error') {
+      } 
+      else if (message.type === 'command_error') {
         const errorLog: LogEntry = {
-          timestamp: new Date().toISOString(),
+          timestamp: message.timestamp || new Date().toISOString(),
           level: 'error',
           message: message.error || 'Command execution failed',
         };
-        setLogs((prev) => [...prev.slice(-99), errorLog]);
+        setLogs((prev) => [...prev.slice(-199), errorLog]);
         setIsExecuting(false);
+      }
+      else if (message.type === 'clear_screen') {
+        setLogs([]);
+        setIsExecuting(false);
+      }
+      else if (message.type === 'subscribed') {
+        // Connection established
+        const welcomeLog: LogEntry = {
+          timestamp: new Date().toISOString(),
+          level: 'success',
+          message: message.message || 'Connected to server',
+        };
+        setLogs((prev) => [...prev, welcomeLog]);
       }
     });
 
@@ -124,32 +164,38 @@ export default function Terminal() {
       case 'error':
         return 'text-red-400';
       case 'warn':
+      case 'warning':
         return 'text-yellow-400';
       case 'debug':
-        return 'text-gray-400';
+        return 'text-gray-500';
       case 'command':
-        return 'text-cyan-400';
-      case 'output':
-        return 'text-white';
-      default:
+        return 'text-cyan-400 font-bold';
+      case 'success':
         return 'text-green-400';
+      case 'output':
+        return 'text-gray-200';
+      default:
+        return 'text-blue-400';
     }
   };
 
   const getLevelIcon = (level: string) => {
     switch (level) {
       case 'error':
-        return '✗';
+        return '❌';
       case 'warn':
-        return '⚠';
+      case 'warning':
+        return '⚠️';
+      case 'success':
+        return '✅';
       case 'debug':
-        return '◆';
+        return '🔍';
       case 'command':
         return '$';
       case 'output':
-        return '→';
+        return '';
       default:
-        return '›';
+        return '•';
     }
   };
 
@@ -204,8 +250,8 @@ export default function Terminal() {
             </div>
           ) : (
             logs.map((log, index) => (
-              <div key={index} className="flex gap-2 mb-1 hover:bg-gray-900/50 px-2 py-0.5 rounded">
-                <span className="text-gray-600 text-xs">
+              <div key={index} className="flex gap-2 mb-1 hover:bg-gray-900/30 px-2 py-0.5 rounded group">
+                <span className="text-gray-600 text-xs shrink-0 w-20">
                   {new Date(log.timestamp).toLocaleTimeString('en-US', {
                     hour12: false,
                     hour: '2-digit',
@@ -213,10 +259,12 @@ export default function Terminal() {
                     second: '2-digit',
                   })}
                 </span>
-                <span className={getLevelColor(log.level)}>
+                <span className={`${getLevelColor(log.level)} shrink-0 w-6`}>
                   {getLevelIcon(log.level)}
                 </span>
-                <span className={getLevelColor(log.level)}>{log.message}</span>
+                <span className={`${getLevelColor(log.level)} flex-1 whitespace-pre-wrap break-words`}>
+                  {log.message}
+                </span>
               </div>
             ))
           )}
@@ -252,7 +300,7 @@ export default function Terminal() {
             </Button>
           </div>
           <div className="mt-2 text-xs text-gray-500 font-mono">
-            Available: generate, status, queue, health, clear, help
+            💡 Type 'help' for all commands | Live activity monitoring enabled
           </div>
         </div>
       </CardContent>

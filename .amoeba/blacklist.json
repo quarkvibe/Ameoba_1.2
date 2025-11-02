@@ -1,0 +1,29 @@
+{
+  "files": [
+    ".env",
+    ".env.local",
+    ".env.production",
+    "LICENSE",
+    "ARCHITECTURE.md",
+    "MANIFESTO.md",
+    "SIMPLICITY_DOCTRINE.md",
+    "server/index.ts",
+    "server/db.ts"
+  ],
+  "directories": [
+    ".git/",
+    "node_modules/",
+    ".amoeba/rules/",
+    "dist/",
+    "build/"
+  ],
+  "patterns": [
+    "**/*.key",
+    "**/*.pem",
+    "**/secrets/**",
+    "**/*.private.*"
+  ]
+}
+
+
+

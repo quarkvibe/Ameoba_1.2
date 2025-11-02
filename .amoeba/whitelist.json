@@ -1,0 +1,21 @@
+{
+  "directories": [
+    "server/routes/",
+    "server/services/",
+    "server/middleware/",
+    "server/validation/",
+    "client/src/components/",
+    "client/src/hooks/",
+    "client/src/lib/"
+  ],
+  "files": [
+    "shared/schema.ts"
+  ],
+  "patterns": [
+    "**/*.test.ts",
+    "docs/**/*.md"
+  ]
+}
+
+
+

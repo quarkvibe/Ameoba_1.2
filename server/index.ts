@@ -2,6 +2,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { cronService } from "./services/cronService";
+import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
 
 const app = express();
 app.use(express.json());
@@ -40,13 +41,11 @@ app.use((req, res, next) => {
 (async () => {
   const server = await registerRoutes(app);
 
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
+  // 404 handler for unmatched routes (must be before error handler)
+  app.use(notFoundHandler);
 
-    res.status(status).json({ message });
-    throw err;
-  });
+  // Centralized error handler (must be last)
+  app.use(errorHandler);
 
 
   // importantly only setup vite in development and after
@@ -70,11 +69,12 @@ app.use((req, res, next) => {
   }, async () => {
     log(`serving on port ${port}`);
     
-    // Start the automated horoscope cron service (single instance in production)
+    // Start the automated content generation cron service
     if (process.env.ENABLE_CRON !== 'false') {
       await cronService.start();
+      log('⏰ Content generation scheduler started');
     } else {
-      console.log('🔒 Cron service disabled via ENABLE_CRON=false (multi-instance safety)');
+      log('🔒 Cron service disabled via ENABLE_CRON=false (multi-instance safety)');
     }
   });
 })();

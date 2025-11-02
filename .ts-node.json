@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "module": "commonjs",
+    "target": "ES2020",
+    "esModuleInterop": true
+  },
+  "ts-node": {
+    "esm": false,
+    "transpileOnly": true
+  }
+}
+
+
+
+

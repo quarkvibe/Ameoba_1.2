@@ -252,15 +252,15 @@ export class QueueService {
   }
 
   private async processHoroscopeGenerationJob(job: QueueJob): Promise<void> {
-    // Import here to avoid circular dependency
-    const { horoscopeQueueService } = await import('./horoscopeQueueService');
-    await horoscopeQueueService.processHoroscopeGenerationJob(job.data);
+    // Horoscope-specific job processing removed
+    // Generic content generation will be handled by contentGenerationService
+    console.log('Horoscope generation job - skipping (generic content service not yet implemented)');
   }
 
   private async processPersonalizedEmailJob(job: QueueJob): Promise<void> {
-    // Import here to avoid circular dependency
-    const { horoscopeQueueService } = await import('./horoscopeQueueService');
-    await horoscopeQueueService.processPersonalizedEmailJob(job.data);
+    // Email-specific job processing removed
+    // Generic email delivery will be handled by delivery service
+    console.log('Personalized email job - skipping (generic delivery service not yet implemented)');
   }
 
   async addJob(job: Omit<InsertQueueJob, 'id' | 'createdAt'>): Promise<QueueJob> {

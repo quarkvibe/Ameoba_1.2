@@ -1,0 +1,20 @@
+{
+  "aiCodeAgent": {
+    "enabled": true,
+    "model": "gpt-4",
+    "maxFileSize": 10000,
+    "requireApproval": true,
+    "autoCommit": true,
+    "branchPrefix": "ai-agent/",
+    "rules": {
+      "enforceSimplicityDoctrine": true,
+      "checkArchitectureAlignment": true,
+      "validateBeforeApply": true,
+      "runTests": false,
+      "maxChangesPerSession": 10
+    }
+  }
+}
+
+
+

@@ -6,11 +6,6 @@ import {
   queueJobs,
   agentConversations,
   systemConfigurations,
-  zodiacSigns,
-  horoscopes,
-  userSunCharts,
-  astrologyDataCache,
-  horoscopeGenerations,
   type User,
   type UpsertUser,
   type Campaign,
@@ -25,15 +20,6 @@ import {
   type InsertAgentConversation,
   type SystemConfiguration,
   type InsertSystemConfiguration,
-  type ZodiacSign,
-  type Horoscope,
-  type InsertHoroscope,
-  type UserSunChart,
-  type InsertUserSunChart,
-  type AstrologyDataCache,
-  type InsertAstrologyDataCache,
-  type HoroscopeGeneration,
-  type InsertHoroscopeGeneration,
   apiKeys,
   type ApiKey,
   type InsertApiKey,
@@ -67,9 +53,31 @@ import {
   templateOutputChannels,
   type TemplateOutputChannel,
   type InsertTemplateOutputChannel,
+  aiCredentials,
+  type AiCredential,
+  type InsertAiCredential,
+  emailServiceCredentials,
+  type EmailServiceCredential,
+  type InsertEmailServiceCredential,
+  licenses,
+  type License,
+  type InsertLicense,
+  stripeCustomers,
+  type StripeCustomer,
+  type InsertStripeCustomer,
+  subscriptions,
+  type Subscription,
+  type InsertSubscription,
+  managedInstances,
+  type ManagedInstance,
+  type InsertManagedInstance,
+  payments,
+  type Payment,
+  type InsertPayment,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, sql, count, gte, lte } from "drizzle-orm";
+import { encryptionService } from "./services/encryptionService";
 
 export interface IStorage {
   // User operations (required for Replit Auth)
@@ -108,27 +116,6 @@ export interface IStorage {
   // System configuration operations
   getSystemConfiguration(userId: string, key: string): Promise<SystemConfiguration | undefined>;
   setSystemConfiguration(config: InsertSystemConfiguration): Promise<SystemConfiguration>;
-  
-  // Horoscope operations
-  getAllZodiacSigns(): Promise<ZodiacSign[]>;
-  getZodiacSignByName(name: string): Promise<ZodiacSign | undefined>;
-  
-  // Astrology data operations
-  getAstrologyDataByDate(date: string): Promise<AstrologyDataCache | undefined>;
-  createAstrologyDataCache(data: InsertAstrologyDataCache): Promise<AstrologyDataCache>;
-  
-  // Horoscope generation operations
-  createHoroscopeGeneration(generation: InsertHoroscopeGeneration): Promise<HoroscopeGeneration>;
-  updateHoroscopeGeneration(id: string, updates: Partial<HoroscopeGeneration>): Promise<void>;
-  
-  // Daily horoscope operations
-  createHoroscope(horoscope: InsertHoroscope): Promise<Horoscope>;
-  getHoroscopeBySignAndDate(signName: string, date: string): Promise<Horoscope | undefined>;
-  getAllHoroscopesForDate(date: string): Promise<Horoscope[]>;
-  
-  // Premium user operations
-  getUserSunChart(userId: string): Promise<UserSunChart | undefined>;
-  createUserSunChart(sunChart: InsertUserSunChart): Promise<UserSunChart>;
 
   // Integration operations
   createApiKey(apiKey: InsertApiKey): Promise<ApiKey>;
@@ -152,6 +139,7 @@ export interface IStorage {
   // Content template operations
   getContentTemplates(userId: string): Promise<ContentTemplate[]>;
   getContentTemplate(id: string, userId: string): Promise<ContentTemplate | undefined>;
+  getContentTemplateById(id: string): Promise<ContentTemplate | undefined>;
   createContentTemplate(template: InsertContentTemplate): Promise<ContentTemplate>;
   updateContentTemplate(id: string, userId: string, updates: Partial<InsertContentTemplate>): Promise<ContentTemplate | undefined>;
   deleteContentTemplate(id: string, userId: string): Promise<boolean>;
@@ -182,11 +170,17 @@ export interface IStorage {
   // Scheduled job operations
   getScheduledJobs(userId: string): Promise<ScheduledJob[]>;
   getScheduledJob(id: string, userId: string): Promise<ScheduledJob | undefined>;
+  getScheduledJobById(id: string): Promise<ScheduledJob | undefined>;
+  getActiveScheduledJobs(): Promise<ScheduledJob[]>;
   createScheduledJob(job: InsertScheduledJob): Promise<ScheduledJob>;
   updateScheduledJob(id: string, userId: string, updates: Partial<InsertScheduledJob>): Promise<ScheduledJob | undefined>;
   deleteScheduledJob(id: string, userId: string): Promise<boolean>;
   updateScheduledJobStatus(id: string, status: string, error?: string): Promise<void>;
+  updateScheduledJobNextRun(id: string, nextRun: Date): Promise<void>;
+  updateScheduledJobLastRun(id: string, lastRun: Date): Promise<void>;
   updateScheduledJobRunHistory(id: string, success: boolean, nextRun?: Date): Promise<void>;
+  incrementScheduledJobSuccessCount(id: string): Promise<void>;
+  incrementScheduledJobErrorCount(id: string): Promise<void>;
 
   // Generated content operations
   getGeneratedContent(userId: string, limit?: number): Promise<GeneratedContent[]>;
@@ -201,6 +195,59 @@ export interface IStorage {
   getTemplateOutputChannels(templateId: string): Promise<TemplateOutputChannel[]>;
   createTemplateOutputChannel(relation: InsertTemplateOutputChannel): Promise<TemplateOutputChannel>;
   deleteTemplateOutputChannel(templateId: string, channelId: string): Promise<boolean>;
+
+  // ===============================================
+  // BYOK CREDENTIALS (with encryption)
+  // ===============================================
+  
+  // AI Credentials operations
+  getAiCredentials(userId: string): Promise<AiCredential[]>;
+  getAiCredential(id: string, userId: string): Promise<AiCredential | undefined>;
+  getDefaultAiCredential(userId: string, provider?: string): Promise<AiCredential | undefined>;
+  createAiCredential(credential: InsertAiCredential): Promise<AiCredential>;
+  updateAiCredential(id: string, userId: string, updates: Partial<InsertAiCredential>): Promise<AiCredential | undefined>;
+  deleteAiCredential(id: string, userId: string): Promise<boolean>;
+  
+  // Email Service Credentials operations
+  getEmailServiceCredentials(userId: string): Promise<EmailServiceCredential[]>;
+  getEmailServiceCredential(id: string, userId: string): Promise<EmailServiceCredential | undefined>;
+  getDefaultEmailServiceCredential(userId: string): Promise<EmailServiceCredential | undefined>;
+  createEmailServiceCredential(credential: InsertEmailServiceCredential): Promise<EmailServiceCredential>;
+  updateEmailServiceCredential(id: string, userId: string, updates: Partial<InsertEmailServiceCredential>): Promise<EmailServiceCredential | undefined>;
+  deleteEmailServiceCredential(id: string, userId: string): Promise<boolean>;
+
+  // Monetization operations (Tree Fiddy! 🦕)
+  // License operations
+  createLicense(license: InsertLicense): Promise<License>;
+  getLicenseByKey(licenseKey: string): Promise<License | undefined>;
+  getActiveLicense(userId: string): Promise<License | undefined>;
+  activateLicense(licenseKey: string, deviceFingerprint: string): Promise<void>;
+  deactivateLicense(licenseKey: string): Promise<void>;
+  getUserLicenses(userId: string): Promise<License[]>;
+  updateLicenseLastValidated(id: string): Promise<void>;
+  getLicenseStats(): Promise<{ total: number; active: number; inactive: number; deactivated: number }>;
+  
+  // Stripe customer operations
+  createStripeCustomer(customer: InsertStripeCustomer): Promise<StripeCustomer>;
+  getStripeCustomer(userId: string): Promise<StripeCustomer | undefined>;
+  getStripeCustomerByStripeId(stripeCustomerId: string): Promise<StripeCustomer | undefined>;
+  
+  // Subscription operations
+  upsertSubscription(subscription: InsertSubscription): Promise<Subscription>;
+  getUserSubscription(userId: string): Promise<Subscription | undefined>;
+  updateSubscriptionStatus(stripeSubscriptionId: string, status: string): Promise<void>;
+  updateSubscriptionCancelAtPeriodEnd(id: string, cancelAtPeriodEnd: boolean): Promise<void>;
+  
+  // Managed instance operations
+  createManagedInstance(instance: InsertManagedInstance): Promise<ManagedInstance>;
+  getManagedInstances(userId: string): Promise<ManagedInstance[]>;
+  getManagedInstance(id: string, userId: string): Promise<ManagedInstance | undefined>;
+  updateManagedInstanceStatus(id: string, status: string, healthStatus?: any): Promise<void>;
+  deleteManagedInstance(id: string, userId: string): Promise<boolean>;
+  
+  // Payment operations
+  createPayment(payment: InsertPayment): Promise<Payment>;
+  getUserPayments(userId: string, limit?: number): Promise<Payment[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -307,12 +354,18 @@ export class DatabaseStorage implements IStorage {
     return metrics;
   }
 
-  // Email configuration operations
+  // Email configuration operations (with encryption)
   async getEmailConfigurations(userId: string): Promise<EmailConfiguration[]> {
-    return await db.select()
+    const configs = await db.select()
       .from(emailConfigurations)
       .where(eq(emailConfigurations.userId, userId))
       .orderBy(desc(emailConfigurations.isDefault));
+    
+    // Decrypt API keys before returning
+    return configs.map(config => ({
+      ...config,
+      apiKey: encryptionService.decrypt(config.apiKey),
+    }));
   }
 
   async getDefaultEmailConfiguration(userId: string): Promise<EmailConfiguration | undefined> {
@@ -323,20 +376,54 @@ export class DatabaseStorage implements IStorage {
         eq(emailConfigurations.isDefault, true),
         eq(emailConfigurations.isActive, true)
       ));
-    return config;
+    
+    if (!config) return undefined;
+    
+    // Decrypt API key before returning
+    return {
+      ...config,
+      apiKey: encryptionService.decrypt(config.apiKey),
+    };
   }
 
   async createEmailConfiguration(config: InsertEmailConfiguration): Promise<EmailConfiguration> {
-    const [newConfig] = await db.insert(emailConfigurations).values(config).returning();
-    return newConfig;
+    // Encrypt API key before storing
+    const encryptedConfig = {
+      ...config,
+      apiKey: encryptionService.encrypt(config.apiKey),
+    };
+    
+    const [newConfig] = await db.insert(emailConfigurations)
+      .values(encryptedConfig)
+      .returning();
+    
+    // Return decrypted version to caller
+    return {
+      ...newConfig,
+      apiKey: encryptionService.decrypt(newConfig.apiKey),
+    };
   }
 
   async updateEmailConfiguration(id: string, userId: string, updates: Partial<InsertEmailConfiguration>): Promise<EmailConfiguration | undefined> {
+    // Encrypt API key if it's being updated
+    const encryptedUpdates = {
+      ...updates,
+      ...(updates.apiKey && { apiKey: encryptionService.encrypt(updates.apiKey) }),
+      updatedAt: new Date(),
+    };
+    
     const [updated] = await db.update(emailConfigurations)
-      .set({ ...updates, updatedAt: new Date() })
+      .set(encryptedUpdates)
       .where(and(eq(emailConfigurations.id, id), eq(emailConfigurations.userId, userId)))
       .returning();
-    return updated;
+    
+    if (!updated) return undefined;
+    
+    // Return decrypted version
+    return {
+      ...updated,
+      apiKey: encryptionService.decrypt(updated.apiKey),
+    };
   }
 
   // Queue operations
@@ -407,108 +494,6 @@ export class DatabaseStorage implements IStorage {
       })
       .returning();
     return newConfig;
-  }
-
-  // Horoscope operations
-  async getAllZodiacSigns(): Promise<ZodiacSign[]> {
-    return await db.select().from(zodiacSigns).orderBy(zodiacSigns.id);
-  }
-
-  async getZodiacSignByName(name: string): Promise<ZodiacSign | undefined> {
-    const [sign] = await db.select()
-      .from(zodiacSigns)
-      .where(eq(zodiacSigns.name, name.toLowerCase()));
-    return sign;
-  }
-
-  // Astrology data operations
-  async getAstrologyDataByDate(date: string): Promise<AstrologyDataCache | undefined> {
-    const [data] = await db.select()
-      .from(astrologyDataCache)
-      .where(eq(astrologyDataCache.date, date));
-    return data;
-  }
-
-  async createAstrologyDataCache(data: InsertAstrologyDataCache): Promise<AstrologyDataCache> {
-    const [newData] = await db.insert(astrologyDataCache).values(data).returning();
-    return newData;
-  }
-
-  // Horoscope generation operations
-  async createHoroscopeGeneration(generation: InsertHoroscopeGeneration): Promise<HoroscopeGeneration> {
-    const [newGeneration] = await db.insert(horoscopeGenerations)
-      .values(generation)
-      .onConflictDoUpdate({
-        target: horoscopeGenerations.date,
-        set: {
-          status: generation.status,
-          totalSigns: generation.totalSigns,
-          completedSigns: generation.completedSigns,
-          startedAt: generation.startedAt,
-          completedAt: null,
-        }
-      })
-      .returning();
-    return newGeneration;
-  }
-
-  async updateHoroscopeGeneration(id: string, updates: Partial<HoroscopeGeneration>): Promise<void> {
-    await db.update(horoscopeGenerations)
-      .set(updates)
-      .where(eq(horoscopeGenerations.id, id));
-  }
-
-  async getHoroscopeGenerationByDate(date: string): Promise<HoroscopeGeneration | undefined> {
-    const [generation] = await db.select()
-      .from(horoscopeGenerations)
-      .where(eq(horoscopeGenerations.date, date));
-    return generation;
-  }
-
-  // Daily horoscope operations
-  async createHoroscope(horoscope: InsertHoroscope): Promise<Horoscope> {
-    // Delete any existing horoscope for this sign and date
-    await db.delete(horoscopes)
-      .where(
-        sql`${horoscopes.zodiacSignId} = ${horoscope.zodiacSignId} AND ${horoscopes.date} = ${horoscope.date}`
-      );
-
-    // Insert new horoscope
-    const [newHoroscope] = await db.insert(horoscopes).values(horoscope).returning();
-    return newHoroscope;
-  }
-
-  async getHoroscopeBySignAndDate(signName: string, date: string): Promise<Horoscope | undefined> {
-    const [horoscope] = await db.select()
-      .from(horoscopes)
-      .innerJoin(zodiacSigns, eq(horoscopes.zodiacSignId, zodiacSigns.id))
-      .where(and(
-        eq(zodiacSigns.id, signName.toLowerCase()),
-        eq(horoscopes.date, date)
-      ));
-    return horoscope?.horoscopes;
-  }
-
-  async getAllHoroscopesForDate(date: string): Promise<Horoscope[]> {
-    const results = await db.select()
-      .from(horoscopes)
-      .innerJoin(zodiacSigns, eq(horoscopes.zodiacSignId, zodiacSigns.id))
-      .where(eq(horoscopes.date, date))
-      .orderBy(zodiacSigns.id);
-    return results.map(r => r.horoscopes);
-  }
-
-  // Premium user operations
-  async getUserSunChart(userId: string): Promise<UserSunChart | undefined> {
-    const [sunChart] = await db.select()
-      .from(userSunCharts)
-      .where(eq(userSunCharts.userId, userId));
-    return sunChart;
-  }
-
-  async createUserSunChart(sunChart: InsertUserSunChart): Promise<UserSunChart> {
-    const [newSunChart] = await db.insert(userSunCharts).values(sunChart).returning();
-    return newSunChart;
   }
 
   // Integration operations
@@ -598,6 +583,13 @@ export class DatabaseStorage implements IStorage {
     const [template] = await db.select()
       .from(contentTemplates)
       .where(and(eq(contentTemplates.id, id), eq(contentTemplates.userId, userId)));
+    return template;
+  }
+
+  async getContentTemplateById(id: string): Promise<ContentTemplate | undefined> {
+    const [template] = await db.select()
+      .from(contentTemplates)
+      .where(eq(contentTemplates.id, id));
     return template;
   }
 
@@ -833,6 +825,50 @@ export class DatabaseStorage implements IStorage {
       .where(eq(scheduledJobs.id, id));
   }
 
+  async getScheduledJobById(id: string): Promise<ScheduledJob | undefined> {
+    const [job] = await db.select()
+      .from(scheduledJobs)
+      .where(eq(scheduledJobs.id, id));
+    return job;
+  }
+
+  async getActiveScheduledJobs(): Promise<ScheduledJob[]> {
+    return await db.select()
+      .from(scheduledJobs)
+      .where(eq(scheduledJobs.isActive, true))
+      .orderBy(desc(scheduledJobs.nextRun));
+  }
+
+  async updateScheduledJobNextRun(id: string, nextRun: Date): Promise<void> {
+    await db.update(scheduledJobs)
+      .set({ nextRun })
+      .where(eq(scheduledJobs.id, id));
+  }
+
+  async updateScheduledJobLastRun(id: string, lastRun: Date): Promise<void> {
+    await db.update(scheduledJobs)
+      .set({ lastRun, totalRuns: sql`${scheduledJobs.totalRuns} + 1` })
+      .where(eq(scheduledJobs.id, id));
+  }
+
+  async incrementScheduledJobSuccessCount(id: string): Promise<void> {
+    await db.update(scheduledJobs)
+      .set({ 
+        successCount: sql`${scheduledJobs.successCount} + 1`,
+        lastStatus: 'success'
+      })
+      .where(eq(scheduledJobs.id, id));
+  }
+
+  async incrementScheduledJobErrorCount(id: string): Promise<void> {
+    await db.update(scheduledJobs)
+      .set({ 
+        errorCount: sql`${scheduledJobs.errorCount} + 1`,
+        lastStatus: 'error'
+      })
+      .where(eq(scheduledJobs.id, id));
+  }
+
   // Generated content operations
   async getGeneratedContent(userId: string, limit = 50): Promise<GeneratedContent[]> {
     return await db.select()
@@ -899,6 +935,429 @@ export class DatabaseStorage implements IStorage {
         eq(templateOutputChannels.channelId, channelId)
       ));
     return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  // ===============================================
+  // BYOK CREDENTIALS (with encryption)
+  // ===============================================
+
+  // AI Credentials operations
+  async getAiCredentials(userId: string): Promise<AiCredential[]> {
+    const credentials = await db.select()
+      .from(aiCredentials)
+      .where(eq(aiCredentials.userId, userId))
+      .orderBy(desc(aiCredentials.createdAt));
+    
+    // Decrypt API keys before returning
+    return credentials.map(cred => ({
+      ...cred,
+      apiKey: encryptionService.decrypt(cred.apiKey),
+    }));
+  }
+
+  async getAiCredential(id: string, userId: string): Promise<AiCredential | undefined> {
+    const [credential] = await db.select()
+      .from(aiCredentials)
+      .where(and(eq(aiCredentials.id, id), eq(aiCredentials.userId, userId)));
+    
+    if (!credential) return undefined;
+    
+    // Decrypt API key before returning
+    return {
+      ...credential,
+      apiKey: encryptionService.decrypt(credential.apiKey),
+    };
+  }
+
+  async getDefaultAiCredential(userId: string, provider?: string): Promise<AiCredential | undefined> {
+    const query = db.select()
+      .from(aiCredentials)
+      .where(and(
+        eq(aiCredentials.userId, userId),
+        eq(aiCredentials.isActive, true),
+        eq(aiCredentials.isDefault, true),
+        provider ? eq(aiCredentials.provider, provider) : sql`true`
+      ))
+      .limit(1);
+    
+    const [credential] = await query;
+    
+    if (!credential) return undefined;
+    
+    // Decrypt API key before returning
+    return {
+      ...credential,
+      apiKey: encryptionService.decrypt(credential.apiKey),
+    };
+  }
+
+  async createAiCredential(credential: InsertAiCredential): Promise<AiCredential> {
+    // Encrypt API key before storing
+    const encryptedCredential = {
+      ...credential,
+      apiKey: encryptionService.encrypt(credential.apiKey),
+    };
+    
+    const [newCredential] = await db.insert(aiCredentials)
+      .values(encryptedCredential)
+      .returning();
+    
+    // Return decrypted version to caller
+    return {
+      ...newCredential,
+      apiKey: encryptionService.decrypt(newCredential.apiKey),
+    };
+  }
+
+  async updateAiCredential(id: string, userId: string, updates: Partial<InsertAiCredential>): Promise<AiCredential | undefined> {
+    // Encrypt API key if it's being updated
+    const encryptedUpdates = {
+      ...updates,
+      ...(updates.apiKey && { apiKey: encryptionService.encrypt(updates.apiKey) }),
+      updatedAt: new Date(),
+    };
+    
+    const [updated] = await db.update(aiCredentials)
+      .set(encryptedUpdates)
+      .where(and(eq(aiCredentials.id, id), eq(aiCredentials.userId, userId)))
+      .returning();
+    
+    if (!updated) return undefined;
+    
+    // Return decrypted version
+    return {
+      ...updated,
+      apiKey: encryptionService.decrypt(updated.apiKey),
+    };
+  }
+
+  async deleteAiCredential(id: string, userId: string): Promise<boolean> {
+    const result = await db.delete(aiCredentials)
+      .where(and(eq(aiCredentials.id, id), eq(aiCredentials.userId, userId)));
+    return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  // Email Service Credentials operations
+  async getEmailServiceCredentials(userId: string): Promise<EmailServiceCredential[]> {
+    const credentials = await db.select()
+      .from(emailServiceCredentials)
+      .where(eq(emailServiceCredentials.userId, userId))
+      .orderBy(desc(emailServiceCredentials.createdAt));
+    
+    // Decrypt sensitive fields before returning
+    return credentials.map(cred => ({
+      ...cred,
+      apiKey: cred.apiKey ? encryptionService.decrypt(cred.apiKey) : null,
+      awsSecretAccessKey: cred.awsSecretAccessKey ? encryptionService.decrypt(cred.awsSecretAccessKey) : null,
+    }));
+  }
+
+  async getEmailServiceCredential(id: string, userId: string): Promise<EmailServiceCredential | undefined> {
+    const [credential] = await db.select()
+      .from(emailServiceCredentials)
+      .where(and(eq(emailServiceCredentials.id, id), eq(emailServiceCredentials.userId, userId)));
+    
+    if (!credential) return undefined;
+    
+    // Decrypt sensitive fields before returning
+    return {
+      ...credential,
+      apiKey: credential.apiKey ? encryptionService.decrypt(credential.apiKey) : null,
+      awsSecretAccessKey: credential.awsSecretAccessKey ? encryptionService.decrypt(credential.awsSecretAccessKey) : null,
+    };
+  }
+
+  async getDefaultEmailServiceCredential(userId: string): Promise<EmailServiceCredential | undefined> {
+    const [credential] = await db.select()
+      .from(emailServiceCredentials)
+      .where(and(
+        eq(emailServiceCredentials.userId, userId),
+        eq(emailServiceCredentials.isActive, true),
+        eq(emailServiceCredentials.isDefault, true)
+      ))
+      .limit(1);
+    
+    if (!credential) return undefined;
+    
+    // Decrypt sensitive fields before returning
+    return {
+      ...credential,
+      apiKey: credential.apiKey ? encryptionService.decrypt(credential.apiKey) : null,
+      awsSecretAccessKey: credential.awsSecretAccessKey ? encryptionService.decrypt(credential.awsSecretAccessKey) : null,
+    };
+  }
+
+  async createEmailServiceCredential(credential: InsertEmailServiceCredential): Promise<EmailServiceCredential> {
+    // Encrypt sensitive fields before storing
+    const encryptedCredential = {
+      ...credential,
+      apiKey: credential.apiKey ? encryptionService.encrypt(credential.apiKey) : null,
+      awsSecretAccessKey: credential.awsSecretAccessKey ? encryptionService.encrypt(credential.awsSecretAccessKey) : null,
+    };
+    
+    const [newCredential] = await db.insert(emailServiceCredentials)
+      .values(encryptedCredential)
+      .returning();
+    
+    // Return decrypted version to caller
+    return {
+      ...newCredential,
+      apiKey: newCredential.apiKey ? encryptionService.decrypt(newCredential.apiKey) : null,
+      awsSecretAccessKey: newCredential.awsSecretAccessKey ? encryptionService.decrypt(newCredential.awsSecretAccessKey) : null,
+    };
+  }
+
+  async updateEmailServiceCredential(id: string, userId: string, updates: Partial<InsertEmailServiceCredential>): Promise<EmailServiceCredential | undefined> {
+    // Encrypt sensitive fields if they're being updated
+    const encryptedUpdates = {
+      ...updates,
+      ...(updates.apiKey && { apiKey: encryptionService.encrypt(updates.apiKey) }),
+      ...(updates.awsSecretAccessKey && { awsSecretAccessKey: encryptionService.encrypt(updates.awsSecretAccessKey) }),
+      updatedAt: new Date(),
+    };
+    
+    const [updated] = await db.update(emailServiceCredentials)
+      .set(encryptedUpdates)
+      .where(and(eq(emailServiceCredentials.id, id), eq(emailServiceCredentials.userId, userId)))
+      .returning();
+    
+    if (!updated) return undefined;
+    
+    // Return decrypted version
+    return {
+      ...updated,
+      apiKey: updated.apiKey ? encryptionService.decrypt(updated.apiKey) : null,
+      awsSecretAccessKey: updated.awsSecretAccessKey ? encryptionService.decrypt(updated.awsSecretAccessKey) : null,
+    };
+  }
+
+  async deleteEmailServiceCredential(id: string, userId: string): Promise<boolean> {
+    const result = await db.delete(emailServiceCredentials)
+      .where(and(eq(emailServiceCredentials.id, id), eq(emailServiceCredentials.userId, userId)));
+    return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  // =============================================================================
+  // MONETIZATION OPERATIONS (Tree Fiddy! 🦕)
+  // =============================================================================
+
+  // License operations
+  async createLicense(license: InsertLicense): Promise<License> {
+    const [newLicense] = await db.insert(licenses)
+      .values(license)
+      .returning();
+    return newLicense;
+  }
+
+  async getLicenseByKey(licenseKey: string): Promise<License | undefined> {
+    const [license] = await db.select()
+      .from(licenses)
+      .where(eq(licenses.licenseKey, licenseKey));
+    return license;
+  }
+
+  async getActiveLicense(userId: string): Promise<License | undefined> {
+    const [license] = await db.select()
+      .from(licenses)
+      .where(and(
+        eq(licenses.userId, userId),
+        eq(licenses.status, 'active')
+      ))
+      .orderBy(desc(licenses.activatedAt))
+      .limit(1);
+    return license;
+  }
+
+  async activateLicense(licenseKey: string, deviceFingerprint: string): Promise<void> {
+    await db.update(licenses)
+      .set({
+        deviceFingerprint,
+        activatedAt: new Date(),
+        status: 'active',
+        lastValidated: new Date(),
+      })
+      .where(eq(licenses.licenseKey, licenseKey));
+  }
+
+  async deactivateLicense(licenseKey: string): Promise<void> {
+    await db.update(licenses)
+      .set({
+        deviceFingerprint: null,
+        deactivatedAt: new Date(),
+        status: 'inactive',
+      })
+      .where(eq(licenses.licenseKey, licenseKey));
+  }
+
+  async getUserLicenses(userId: string): Promise<License[]> {
+    return await db.select()
+      .from(licenses)
+      .where(eq(licenses.userId, userId))
+      .orderBy(desc(licenses.createdAt));
+  }
+
+  async updateLicenseLastValidated(id: string): Promise<void> {
+    await db.update(licenses)
+      .set({ lastValidated: new Date() })
+      .where(eq(licenses.id, id));
+  }
+
+  async getLicenseStats(): Promise<{ total: number; active: number; inactive: number; deactivated: number }> {
+    const result = await db.select({
+      total: count(),
+      active: sql<number>`count(*) filter (where status = 'active')`,
+      inactive: sql<number>`count(*) filter (where status = 'inactive')`,
+      deactivated: sql<number>`count(*) filter (where status = 'deactivated')`,
+    }).from(licenses);
+    
+    return result[0] || { total: 0, active: 0, inactive: 0, deactivated: 0 };
+  }
+
+  // Stripe customer operations
+  async createStripeCustomer(customer: InsertStripeCustomer): Promise<StripeCustomer> {
+    const [newCustomer] = await db.insert(stripeCustomers)
+      .values(customer)
+      .returning();
+    return newCustomer;
+  }
+
+  async getStripeCustomer(userId: string): Promise<StripeCustomer | undefined> {
+    const [customer] = await db.select()
+      .from(stripeCustomers)
+      .where(eq(stripeCustomers.userId, userId));
+    return customer;
+  }
+
+  async getStripeCustomerByStripeId(stripeCustomerId: string): Promise<StripeCustomer | undefined> {
+    const [customer] = await db.select()
+      .from(stripeCustomers)
+      .where(eq(stripeCustomers.stripeCustomerId, stripeCustomerId));
+    return customer;
+  }
+
+  // Subscription operations
+  async upsertSubscription(subscription: InsertSubscription): Promise<Subscription> {
+    // Check if subscription exists
+    const existing = await db.select()
+      .from(subscriptions)
+      .where(eq(subscriptions.stripeSubscriptionId, subscription.stripeSubscriptionId || ''))
+      .limit(1);
+
+    if (existing.length > 0) {
+      // Update existing
+      const [updated] = await db.update(subscriptions)
+        .set({
+          ...subscription,
+          updatedAt: new Date(),
+        })
+        .where(eq(subscriptions.id, existing[0].id))
+        .returning();
+      return updated;
+    } else {
+      // Create new
+      const [newSubscription] = await db.insert(subscriptions)
+        .values(subscription)
+        .returning();
+      return newSubscription;
+    }
+  }
+
+  async getUserSubscription(userId: string): Promise<Subscription | undefined> {
+    const [subscription] = await db.select()
+      .from(subscriptions)
+      .where(and(
+        eq(subscriptions.userId, userId),
+        eq(subscriptions.status, 'active')
+      ))
+      .orderBy(desc(subscriptions.createdAt))
+      .limit(1);
+    return subscription;
+  }
+
+  async updateSubscriptionStatus(stripeSubscriptionId: string, status: string): Promise<void> {
+    await db.update(subscriptions)
+      .set({
+        status,
+        updatedAt: new Date(),
+      })
+      .where(eq(subscriptions.stripeSubscriptionId, stripeSubscriptionId));
+  }
+
+  async updateSubscriptionCancelAtPeriodEnd(id: string, cancelAtPeriodEnd: boolean): Promise<void> {
+    await db.update(subscriptions)
+      .set({
+        cancelAtPeriodEnd,
+        updatedAt: new Date(),
+      })
+      .where(eq(subscriptions.id, id));
+  }
+
+  // Managed instance operations
+  async createManagedInstance(instance: InsertManagedInstance): Promise<ManagedInstance> {
+    const [newInstance] = await db.insert(managedInstances)
+      .values(instance)
+      .returning();
+    return newInstance;
+  }
+
+  async getManagedInstances(userId: string): Promise<ManagedInstance[]> {
+    return await db.select()
+      .from(managedInstances)
+      .where(and(
+        eq(managedInstances.userId, userId),
+        sql`${managedInstances.destroyedAt} IS NULL`
+      ))
+      .orderBy(desc(managedInstances.createdAt));
+  }
+
+  async getManagedInstance(id: string, userId: string): Promise<ManagedInstance | undefined> {
+    const [instance] = await db.select()
+      .from(managedInstances)
+      .where(and(
+        eq(managedInstances.id, id),
+        eq(managedInstances.userId, userId)
+      ));
+    return instance;
+  }
+
+  async updateManagedInstanceStatus(id: string, status: string, healthStatus?: any): Promise<void> {
+    await db.update(managedInstances)
+      .set({
+        status,
+        lastHealthCheck: new Date(),
+        ...(healthStatus && { healthStatus }),
+      })
+      .where(eq(managedInstances.id, id));
+  }
+
+  async deleteManagedInstance(id: string, userId: string): Promise<boolean> {
+    // Soft delete by setting destroyedAt
+    const result = await db.update(managedInstances)
+      .set({
+        status: 'destroyed',
+        destroyedAt: new Date(),
+      })
+      .where(and(
+        eq(managedInstances.id, id),
+        eq(managedInstances.userId, userId)
+      ));
+    return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  // Payment operations
+  async createPayment(payment: InsertPayment): Promise<Payment> {
+    const [newPayment] = await db.insert(payments)
+      .values(payment)
+      .returning();
+    return newPayment;
+  }
+
+  async getUserPayments(userId: string, limit: number = 50): Promise<Payment[]> {
+    return await db.select()
+      .from(payments)
+      .where(eq(payments.userId, userId))
+      .orderBy(desc(payments.createdAt))
+      .limit(limit);
   }
 }
 

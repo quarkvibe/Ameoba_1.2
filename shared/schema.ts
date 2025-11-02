@@ -41,7 +41,7 @@ export const users = pgTable("users", {
 // Email configurations
 export const emailConfigurations = pgTable("email_configurations", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").references(() => users.id),
+  userId: varchar("user_id").references(() => users.id, { onDelete: 'cascade' }),
   provider: varchar("provider").notNull(), // 'sendgrid', 'ses', etc.
   apiKey: text("api_key").notNull(),
   fromEmail: varchar("from_email").notNull(),
@@ -55,7 +55,7 @@ export const emailConfigurations = pgTable("email_configurations", {
 // Email campaigns
 export const campaigns = pgTable("campaigns", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").references(() => users.id),
+  userId: varchar("user_id").references(() => users.id, { onDelete: 'cascade' }),
   name: varchar("name").notNull(),
   subject: varchar("subject").notNull(),
   content: text("content").notNull(),
@@ -70,13 +70,17 @@ export const campaigns = pgTable("campaigns", {
   metadata: jsonb("metadata"), // additional campaign data
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => [
+  index("idx_campaigns_user").on(table.userId),
+  index("idx_campaigns_status").on(table.status),
+  index("idx_campaigns_user_status").on(table.userId, table.status),
+]);
 
 // Email logs
 export const emailLogs = pgTable("email_logs", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-  campaignId: uuid("campaign_id").references(() => campaigns.id),
-  userId: varchar("user_id").references(() => users.id),
+  campaignId: uuid("campaign_id").references(() => campaigns.id, { onDelete: 'cascade' }),
+  userId: varchar("user_id").references(() => users.id, { onDelete: 'cascade' }),
   recipient: varchar("recipient").notNull(),
   subject: varchar("subject").notNull(),
   provider: varchar("provider").notNull(),
@@ -111,7 +115,7 @@ export const queueJobs = pgTable("queue_jobs", {
 // Agent conversations
 export const agentConversations = pgTable("agent_conversations", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").references(() => users.id),
+  userId: varchar("user_id").references(() => users.id, { onDelete: 'cascade' }),
   message: text("message").notNull(),
   response: text("response").notNull(),
   context: jsonb("context"), // conversation context and metadata
@@ -121,7 +125,7 @@ export const agentConversations = pgTable("agent_conversations", {
 // System configurations
 export const systemConfigurations = pgTable("system_configurations", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").references(() => users.id),
+  userId: varchar("user_id").references(() => users.id, { onDelete: 'cascade' }),
   key: varchar("key").notNull(),
   value: jsonb("value").notNull(),
   description: text("description"),
@@ -129,90 +133,13 @@ export const systemConfigurations = pgTable("system_configurations", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-// Zodiac signs reference table
-export const zodiacSigns = pgTable("zodiac_signs", {
-  id: varchar("id").primaryKey(), // 'aries', 'taurus', etc.
-  name: varchar("name").notNull().unique(), // 'Aries', 'Taurus', etc.
-  // Simplified to core fields that exist in production database
-  // Removed: symbol, element, quality, dateRange, traits
-});
-
-// Daily horoscopes for each zodiac sign
-export const horoscopes = pgTable("horoscopes", {
-  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-  zodiacSignId: varchar("zodiac_sign_id").references(() => zodiacSigns.id).notNull(),
-  date: date("date").notNull(),
-  content: text("content").notNull(), // generated horoscope text (accessible, mystical)
-  technicalDetails: text("technical_details"), // optional technical planetary info for advanced users
-  // Temporarily removed optional fields that don't exist in production:
-  // mood, luckNumber, luckyColor, planetaryInfluence, generatedAt, generationJobId
-}, (table) => [
-  index("idx_horoscopes_date_sign").on(table.date, table.zodiacSignId),
-]);
-
-// Premium user sun chart and astrology data
-export const userSunCharts = pgTable("user_sun_charts", {
-  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").references(() => users.id).notNull().unique(),
-  zodiacSignId: varchar("zodiac_sign_id").references(() => zodiacSigns.id).notNull(),
-  birthDate: date("birth_date").notNull(),
-  birthTime: varchar("birth_time"), // HH:MM format
-  birthLocation: varchar("birth_location"), // city, country
-  latitude: decimal("latitude", { precision: 10, scale: 7 }),
-  longitude: decimal("longitude", { precision: 10, scale: 7 }),
-  timezone: varchar("timezone"),
-  ascendant: varchar("ascendant"), // rising sign
-  moonSign: varchar("moon_sign"),
-  planetaryPositions: jsonb("planetary_positions"), // birth chart planetary positions
-  houses: jsonb("houses"), // astrological houses data
-  aspects: jsonb("aspects"), // planetary aspects
-  isPremium: boolean("is_premium").default(true),
-  lastUpdated: timestamp("last_updated").defaultNow(),
-  createdAt: timestamp("created_at").defaultNow(),
-});
-
-// Cached astrology data from external APIs
-export const astrologyDataCache = pgTable("astrology_data_cache", {
-  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-  date: date("date").notNull().unique(),
-  planetaryPositions: jsonb("planetary_positions").notNull(), // current planetary data
-  aspects: jsonb("aspects"), // planetary aspects for the day
-  moonPhase: varchar("moon_phase"),
-  apiSource: varchar("api_source").notNull(), // 'freeastrology', 'astrologyapi', etc.
-  rawData: jsonb("raw_data"), // complete API response for reference
-  expiresAt: timestamp("expires_at").notNull(),
-  createdAt: timestamp("created_at").defaultNow(),
-}, (table) => [
-  index("idx_astrology_cache_date").on(table.date),
-  index("idx_astrology_cache_expires").on(table.expiresAt),
-]);
-
-// Daily horoscope generation tracking
-export const horoscopeGenerations = pgTable("horoscope_generations", {
-  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-  date: date("date").notNull().unique(),
-  status: varchar("status").notNull().default('pending'), // 'pending', 'processing', 'completed', 'failed'
-  totalSigns: integer("total_signs").default(12),
-  completedSigns: integer("completed_signs").default(0),
-  // Removed astrologyDataId to match production database schema
-  // Removed generationJobIds to match production database schema
-  startedAt: timestamp("started_at"),
-  completedAt: timestamp("completed_at"),
-  // Removed error column to match production database schema
-  createdAt: timestamp("created_at").defaultNow(),
-}, (table) => [
-  index("idx_horoscope_gen_date").on(table.date),
-  index("idx_horoscope_gen_status").on(table.status),
-]);
-
 // Relations
-export const usersRelations = relations(users, ({ many, one }) => ({
+export const usersRelations = relations(users, ({ many }) => ({
   emailConfigurations: many(emailConfigurations),
   campaigns: many(campaigns),
   emailLogs: many(emailLogs),
   agentConversations: many(agentConversations),
   systemConfigurations: many(systemConfigurations),
-  sunChart: one(userSunCharts),
 }));
 
 export const campaignsRelations = relations(campaigns, ({ one, many }) => ({
@@ -233,38 +160,6 @@ export const emailLogsRelations = relations(emailLogs, ({ one }) => ({
     references: [users.id],
   }),
 }));
-
-export const zodiacSignsRelations = relations(zodiacSigns, ({ many }) => ({
-  horoscopes: many(horoscopes),
-  userSunCharts: many(userSunCharts),
-}));
-
-export const horoscopesRelations = relations(horoscopes, ({ one }) => ({
-  zodiacSign: one(zodiacSigns, {
-    fields: [horoscopes.zodiacSignId],
-    references: [zodiacSigns.id],
-  }),
-}));
-
-export const userSunChartsRelations = relations(userSunCharts, ({ one }) => ({
-  user: one(users, {
-    fields: [userSunCharts.userId],
-    references: [users.id],
-  }),
-  zodiacSign: one(zodiacSigns, {
-    fields: [userSunCharts.zodiacSignId],
-    references: [zodiacSigns.id],
-  }),
-}));
-
-// Removed horoscopeGenerationsRelations because astrologyDataId field was removed to match production schema
-// export const horoscopeGenerationsRelations = relations(horoscopeGenerations, ({ one }) => ({
-//   astrologyData: one(astrologyDataCache, {
-//     fields: [horoscopeGenerations.astrologyDataId],
-//     references: [astrologyDataCache.id],
-//   }),
-// }));
-
 
 // Insert schemas
 export const insertEmailConfigurationSchema = createInsertSchema(emailConfigurations).omit({
@@ -305,28 +200,6 @@ export const insertSystemConfigurationSchema = createInsertSchema(systemConfigur
   id: true,
   createdAt: true,
   updatedAt: true,
-});
-
-export const insertZodiacSignSchema = createInsertSchema(zodiacSigns);
-
-export const insertHoroscopeSchema = createInsertSchema(horoscopes).omit({
-  id: true,
-});
-
-export const insertUserSunChartSchema = createInsertSchema(userSunCharts).omit({
-  id: true,
-  lastUpdated: true,
-  createdAt: true,
-});
-
-export const insertAstrologyDataCacheSchema = createInsertSchema(astrologyDataCache).omit({
-  id: true,
-  createdAt: true,
-});
-
-export const insertHoroscopeGenerationSchema = createInsertSchema(horoscopeGenerations).omit({
-  id: true,
-  createdAt: true,
 });
 
 // API Keys for external integrations
@@ -396,7 +269,7 @@ export const insertIntegrationLogSchema = createInsertSchema(integrationLogs).om
 // The service layer handles encryption/decryption transparently
 export const aiCredentials = pgTable("ai_credentials", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").references(() => users.id).notNull(),
+  userId: varchar("user_id").references(() => users.id, { onDelete: 'cascade' }).notNull(),
   provider: varchar("provider", { length: 50 }).notNull(), // 'openai', 'anthropic', 'cohere', 'google', etc.
   name: varchar("name", { length: 200 }).notNull(), // user-friendly name
   apiKey: text("api_key").notNull(), // ENCRYPTED - decrypted only in memory when needed
@@ -416,7 +289,7 @@ export const aiCredentials = pgTable("ai_credentials", {
 // The service layer handles encryption/decryption transparently
 export const emailServiceCredentials = pgTable("email_service_credentials", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").references(() => users.id).notNull(),
+  userId: varchar("user_id").references(() => users.id, { onDelete: 'cascade' }).notNull(),
   provider: varchar("provider", { length: 50 }).notNull(), // 'sendgrid', 'aws_ses', 'mailgun', etc.
   name: varchar("name", { length: 200 }).notNull(),
   apiKey: text("api_key"), // ENCRYPTED - for SendGrid, Mailgun
@@ -437,10 +310,10 @@ export const emailServiceCredentials = pgTable("email_service_credentials", {
 // Workflows - AI content generation configurations
 export const workflows = pgTable("workflows", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").references(() => users.id).notNull(),
+  userId: varchar("user_id").references(() => users.id, { onDelete: 'cascade' }).notNull(),
   name: varchar("name", { length: 200 }).notNull(),
   description: text("description"),
-  aiCredentialId: uuid("ai_credential_id").references(() => aiCredentials.id).notNull(),
+  aiCredentialId: uuid("ai_credential_id").references(() => aiCredentials.id, { onDelete: 'cascade' }).notNull(),
   model: varchar("model", { length: 100 }).notNull(), // 'gpt-4', 'claude-3-opus', etc.
   systemPrompt: text("system_prompt"),
   userPrompt: text("user_prompt").notNull(),
@@ -462,8 +335,8 @@ export const workflows = pgTable("workflows", {
 // Workflow executions - history and results
 export const workflowExecutions = pgTable("workflow_executions", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-  workflowId: uuid("workflow_id").references(() => workflows.id).notNull(),
-  userId: varchar("user_id").references(() => users.id).notNull(),
+  workflowId: uuid("workflow_id").references(() => workflows.id, { onDelete: 'cascade' }).notNull(),
+  userId: varchar("user_id").references(() => users.id, { onDelete: 'cascade' }).notNull(),
   status: varchar("status", { length: 20 }).notNull().default('pending'), // 'pending', 'running', 'completed', 'failed'
   input: jsonb("input"), // variable values used
   output: text("output"), // generated content
@@ -483,17 +356,17 @@ export const workflowExecutions = pgTable("workflow_executions", {
 // Delivery configurations - scheduled or API-based
 export const deliveryConfigs = pgTable("delivery_configs", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-  workflowId: uuid("workflow_id").references(() => workflows.id).notNull(),
-  userId: varchar("user_id").references(() => users.id).notNull(),
+  workflowId: uuid("workflow_id").references(() => workflows.id, { onDelete: 'cascade' }).notNull(),
+  userId: varchar("user_id").references(() => users.id, { onDelete: 'cascade' }).notNull(),
   type: varchar("type", { length: 20 }).notNull(), // 'scheduled_email', 'api', 'webhook'
   // Email delivery fields
-  emailCredentialId: uuid("email_credential_id").references(() => emailServiceCredentials.id),
+  emailCredentialId: uuid("email_credential_id").references(() => emailServiceCredentials.id, { onDelete: 'set null' }),
   recipientEmails: jsonb("recipient_emails"), // array of email addresses
   emailSubject: varchar("email_subject", { length: 500 }),
   cronExpression: varchar("cron_expression", { length: 100 }),
   timezone: varchar("timezone", { length: 50 }).default('UTC'),
   // API delivery fields
-  apiKeyId: uuid("api_key_id").references(() => apiKeys.id), // reference to generated API key
+  apiKeyId: uuid("api_key_id").references(() => apiKeys.id, { onDelete: 'set null' }), // reference to generated API key
   // Webhook delivery fields
   webhookUrl: varchar("webhook_url", { length: 500 }),
   webhookHeaders: jsonb("webhook_headers"),
@@ -513,8 +386,8 @@ export const deliveryConfigs = pgTable("delivery_configs", {
 // Delivery logs
 export const deliveryLogs = pgTable("delivery_logs", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-  deliveryConfigId: uuid("delivery_config_id").references(() => deliveryConfigs.id).notNull(),
-  executionId: uuid("execution_id").references(() => workflowExecutions.id),
+  deliveryConfigId: uuid("delivery_config_id").references(() => deliveryConfigs.id, { onDelete: 'cascade' }).notNull(),
+  executionId: uuid("execution_id").references(() => workflowExecutions.id, { onDelete: 'set null' }),
   status: varchar("status", { length: 20 }).notNull(), // 'success', 'failed', 'pending'
   recipientEmail: varchar("recipient_email", { length: 255 }),
   statusCode: integer("status_code"),
@@ -581,10 +454,10 @@ export type InsertDeliveryLog = z.infer<typeof insertDeliveryLogSchema>;
 // Content templates for AI generation
 export const contentTemplates = pgTable("content_templates", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").references(() => users.id),
+  userId: varchar("user_id").references(() => users.id, { onDelete: 'cascade' }),
   name: varchar("name", { length: 200 }).notNull(),
   description: text("description"),
-  category: varchar("category", { length: 100 }), // 'horoscope', 'blog', 'newsletter', etc.
+  category: varchar("category", { length: 100 }), // 'blog', 'newsletter', 'social', 'report', 'email', etc.
   aiPrompt: text("ai_prompt").notNull(),
   systemPrompt: text("system_prompt"),
   outputFormat: varchar("output_format", { length: 50 }).default('text'), // 'text', 'json', 'markdown', 'html'
@@ -596,12 +469,16 @@ export const contentTemplates = pgTable("content_templates", {
   lastUsed: timestamp("last_used"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => [
+  index("idx_content_templates_user").on(table.userId),
+  index("idx_content_templates_user_active").on(table.userId, table.isActive),
+  index("idx_content_templates_category").on(table.category),
+]);
 
 // Data sources for content generation
 export const dataSources = pgTable("data_sources", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").references(() => users.id),
+  userId: varchar("user_id").references(() => users.id, { onDelete: 'cascade' }),
   name: varchar("name", { length: 200 }).notNull(),
   description: text("description"),
   type: varchar("type", { length: 50 }).notNull(), // 'api', 'database', 'file', 'astronomy', 'webhook', 'rss'
@@ -620,7 +497,7 @@ export const dataSources = pgTable("data_sources", {
 // Output channels for content distribution
 export const outputChannels = pgTable("output_channels", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").references(() => users.id),
+  userId: varchar("user_id").references(() => users.id, { onDelete: 'cascade' }),
   name: varchar("name", { length: 200 }).notNull(),
   description: text("description"),
   type: varchar("type", { length: 50 }).notNull(), // 'api', 'email', 'webhook', 'file', 'database', 'redis', 's3'
@@ -637,7 +514,7 @@ export const outputChannels = pgTable("output_channels", {
 // Distribution rules for conditional routing
 export const distributionRules = pgTable("distribution_rules", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").references(() => users.id),
+  userId: varchar("user_id").references(() => users.id, { onDelete: 'cascade' }),
   name: varchar("name", { length: 200 }).notNull(),
   description: text("description"),
   conditions: jsonb("conditions").notNull(), // Array of condition objects
@@ -652,10 +529,10 @@ export const distributionRules = pgTable("distribution_rules", {
 // Scheduled content generation jobs
 export const scheduledJobs = pgTable("scheduled_jobs", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").references(() => users.id),
+  userId: varchar("user_id").references(() => users.id, { onDelete: 'cascade' }),
   name: varchar("name", { length: 200 }).notNull(),
   description: text("description"),
-  templateId: uuid("template_id").references(() => contentTemplates.id).notNull(),
+  templateId: uuid("template_id").references(() => contentTemplates.id, { onDelete: 'cascade' }).notNull(),
   cronExpression: varchar("cron_expression", { length: 100 }).notNull(),
   timezone: varchar("timezone", { length: 50 }).default('UTC'),
   isActive: boolean("is_active").default(true),
@@ -668,30 +545,36 @@ export const scheduledJobs = pgTable("scheduled_jobs", {
   errorCount: integer("error_count").default(0),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => [
+  index("idx_scheduled_jobs_next_run_active").on(table.nextRun, table.isActive),
+  index("idx_scheduled_jobs_user_active").on(table.userId, table.isActive),
+  index("idx_scheduled_jobs_template").on(table.templateId),
+]);
 
 // Generated content history
 export const generatedContent = pgTable("generated_content", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").references(() => users.id),
-  templateId: uuid("template_id").references(() => contentTemplates.id),
-  jobId: uuid("job_id").references(() => scheduledJobs.id),
+  userId: varchar("user_id").references(() => users.id, { onDelete: 'cascade' }),
+  templateId: uuid("template_id").references(() => contentTemplates.id, { onDelete: 'set null' }),
+  jobId: uuid("job_id").references(() => scheduledJobs.id, { onDelete: 'set null' }),
   title: varchar("title", { length: 500 }),
   content: text("content").notNull(),
   metadata: jsonb("metadata"), // Source data, generation parameters, etc.
   distributionStatus: jsonb("distribution_status"), // Status per output channel
   generatedAt: timestamp("generated_at").defaultNow(),
 }, (table) => [
+  index("idx_generated_content_user").on(table.userId),
   index("idx_generated_content_template").on(table.templateId),
   index("idx_generated_content_job").on(table.jobId),
   index("idx_generated_content_date").on(table.generatedAt),
+  index("idx_generated_content_user_date").on(table.userId, table.generatedAt),
 ]);
 
 // Template to data source relationships (many-to-many)
 export const templateDataSources = pgTable("template_data_sources", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-  templateId: uuid("template_id").references(() => contentTemplates.id).notNull(),
-  dataSourceId: uuid("data_source_id").references(() => dataSources.id).notNull(),
+  templateId: uuid("template_id").references(() => contentTemplates.id, { onDelete: 'cascade' }).notNull(),
+  dataSourceId: uuid("data_source_id").references(() => dataSources.id, { onDelete: 'cascade' }).notNull(),
   variableMapping: jsonb("variable_mapping"), // How data source fields map to template variables
   isRequired: boolean("is_required").default(false),
   createdAt: timestamp("created_at").defaultNow(),
@@ -703,8 +586,8 @@ export const templateDataSources = pgTable("template_data_sources", {
 // Template to output channel relationships (many-to-many)
 export const templateOutputChannels = pgTable("template_output_channels", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-  templateId: uuid("template_id").references(() => contentTemplates.id).notNull(),
-  channelId: uuid("channel_id").references(() => outputChannels.id).notNull(),
+  templateId: uuid("template_id").references(() => contentTemplates.id, { onDelete: 'cascade' }).notNull(),
+  channelId: uuid("channel_id").references(() => outputChannels.id, { onDelete: 'cascade' }).notNull(),
   isEnabled: boolean("is_enabled").default(true),
   channelConfig: jsonb("channel_config"), // Override channel settings for this template
   createdAt: timestamp("created_at").defaultNow(),
@@ -774,18 +657,6 @@ export type AgentConversation = typeof agentConversations.$inferSelect;
 export type InsertAgentConversation = z.infer<typeof insertAgentConversationSchema>;
 export type SystemConfiguration = typeof systemConfigurations.$inferSelect;
 export type InsertSystemConfiguration = z.infer<typeof insertSystemConfigurationSchema>;
-
-// Horoscope types
-export type ZodiacSign = typeof zodiacSigns.$inferSelect;
-export type InsertZodiacSign = z.infer<typeof insertZodiacSignSchema>;
-export type Horoscope = typeof horoscopes.$inferSelect;
-export type InsertHoroscope = z.infer<typeof insertHoroscopeSchema>;
-export type UserSunChart = typeof userSunCharts.$inferSelect;
-export type InsertUserSunChart = z.infer<typeof insertUserSunChartSchema>;
-export type AstrologyDataCache = typeof astrologyDataCache.$inferSelect;
-export type InsertAstrologyDataCache = z.infer<typeof insertAstrologyDataCacheSchema>;
-export type HoroscopeGeneration = typeof horoscopeGenerations.$inferSelect;
-export type InsertHoroscopeGeneration = z.infer<typeof insertHoroscopeGenerationSchema>;
 
 // Integration types
 export type ApiKey = typeof apiKeys.$inferSelect;
@@ -879,6 +750,150 @@ export const templateOutputChannelsRelations = relations(templateOutputChannels,
   }),
 }));
 
+// =============================================================================
+// MONETIZATION & LICENSING (Tree Fiddy! 🦕)
+// =============================================================================
+
+// License keys ($3.50 lifetime per device)
+export const licenses = pgTable("licenses", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  licenseKey: varchar("license_key", { length: 255 }).unique().notNull(),
+  deviceFingerprint: varchar("device_fingerprint", { length: 255 }),
+  activatedAt: timestamp("activated_at"),
+  deactivatedAt: timestamp("deactivated_at"),
+  lastValidated: timestamp("last_validated"),
+  paymentId: varchar("payment_id"),
+  status: varchar("status").notNull().default('inactive'), // inactive, active, deactivated
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_licenses_user").on(table.userId),
+  index("idx_licenses_key").on(table.licenseKey),
+  index("idx_licenses_status").on(table.status),
+]);
+
+// Stripe customers
+export const stripeCustomers = pgTable("stripe_customers", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  stripeCustomerId: varchar("stripe_customer_id", { length: 255 }).unique().notNull(),
+  email: varchar("email"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_stripe_customers_user").on(table.userId),
+  index("idx_stripe_customers_stripe_id").on(table.stripeCustomerId),
+]);
+
+// Managed hosting subscriptions
+export const subscriptions = pgTable("subscriptions", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  stripeSubscriptionId: varchar("stripe_subscription_id", { length: 255 }).unique(),
+  stripePriceId: varchar("stripe_price_id", { length: 255 }),
+  tier: varchar("tier").notNull(), // lite, standard, pro, business
+  status: varchar("status").notNull(), // active, canceled, past_due, unpaid, etc.
+  currentPeriodStart: timestamp("current_period_start"),
+  currentPeriodEnd: timestamp("current_period_end"),
+  cancelAtPeriodEnd: boolean("cancel_at_period_end").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_subscriptions_user").on(table.userId),
+  index("idx_subscriptions_stripe_id").on(table.stripeSubscriptionId),
+  index("idx_subscriptions_status").on(table.status),
+]);
+
+// Managed DigitalOcean droplet instances
+export const managedInstances = pgTable("managed_instances", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  subscriptionId: uuid("subscription_id").references(() => subscriptions.id),
+  dropletId: varchar("droplet_id").notNull(),
+  name: varchar("name").notNull(),
+  ipAddress: varchar("ip_address"),
+  domain: varchar("domain"),
+  size: varchar("size").notNull(), // s-1vcpu-1gb, s-2vcpu-2gb, etc.
+  region: varchar("region").notNull(), // nyc1, sfo3, etc.
+  status: varchar("status").notNull(), // provisioning, active, stopped, error, destroyed
+  lastHealthCheck: timestamp("last_health_check"),
+  healthStatus: jsonb("health_status"), // CPU, memory, disk metrics
+  createdAt: timestamp("created_at").defaultNow(),
+  destroyedAt: timestamp("destroyed_at"),
+}, (table) => [
+  index("idx_managed_instances_user").on(table.userId),
+  index("idx_managed_instances_subscription").on(table.subscriptionId),
+  index("idx_managed_instances_status").on(table.status),
+]);
+
+// Payment history
+export const payments = pgTable("payments", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  stripePaymentIntentId: varchar("stripe_payment_intent_id", { length: 255 }).unique(),
+  amount: integer("amount").notNull(), // Amount in cents
+  currency: varchar("currency").default('usd'),
+  status: varchar("status").notNull(), // succeeded, failed, pending, etc.
+  description: varchar("description"),
+  receiptUrl: varchar("receipt_url"),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_payments_user").on(table.userId),
+  index("idx_payments_status").on(table.status),
+]);
+
+// Insert schemas for monetization tables
+export const insertLicenseSchema = createInsertSchema(licenses);
+export const insertStripeCustomerSchema = createInsertSchema(stripeCustomers);
+export const insertSubscriptionSchema = createInsertSchema(subscriptions);
+export const insertManagedInstanceSchema = createInsertSchema(managedInstances);
+export const insertPaymentSchema = createInsertSchema(payments);
+
+// Relations for monetization tables
+export const licensesRelations = relations(licenses, ({ one }) => ({
+  user: one(users, {
+    fields: [licenses.userId],
+    references: [users.id],
+  }),
+}));
+
+export const stripeCustomersRelations = relations(stripeCustomers, ({ one }) => ({
+  user: one(users, {
+    fields: [stripeCustomers.userId],
+    references: [users.id],
+  }),
+}));
+
+export const subscriptionsRelations = relations(subscriptions, ({ one, many }) => ({
+  user: one(users, {
+    fields: [subscriptions.userId],
+    references: [users.id],
+  }),
+  managedInstances: many(managedInstances),
+}));
+
+export const managedInstancesRelations = relations(managedInstances, ({ one }) => ({
+  user: one(users, {
+    fields: [managedInstances.userId],
+    references: [users.id],
+  }),
+  subscription: one(subscriptions, {
+    fields: [managedInstances.subscriptionId],
+    references: [subscriptions.id],
+  }),
+}));
+
+export const paymentsRelations = relations(payments, ({ one }) => ({
+  user: one(users, {
+    fields: [payments.userId],
+    references: [users.id],
+  }),
+}));
+
+// =============================================================================
+// TYPE EXPORTS
+// =============================================================================
+
 // Universal content platform types
 export type ContentTemplate = typeof contentTemplates.$inferSelect;
 export type InsertContentTemplate = z.infer<typeof insertContentTemplateSchema>;
@@ -896,3 +911,15 @@ export type TemplateDataSource = typeof templateDataSources.$inferSelect;
 export type InsertTemplateDataSource = z.infer<typeof insertTemplateDataSourceSchema>;
 export type TemplateOutputChannel = typeof templateOutputChannels.$inferSelect;
 export type InsertTemplateOutputChannel = z.infer<typeof insertTemplateOutputChannelSchema>;
+
+// Monetization types
+export type License = typeof licenses.$inferSelect;
+export type InsertLicense = z.infer<typeof insertLicenseSchema>;
+export type StripeCustomer = typeof stripeCustomers.$inferSelect;
+export type InsertStripeCustomer = z.infer<typeof insertStripeCustomerSchema>;
+export type Subscription = typeof subscriptions.$inferSelect;
+export type InsertSubscription = z.infer<typeof insertSubscriptionSchema>;
+export type ManagedInstance = typeof managedInstances.$inferSelect;
+export type InsertManagedInstance = z.infer<typeof insertManagedInstanceSchema>;
+export type Payment = typeof payments.$inferSelect;
+export type InsertPayment = z.infer<typeof insertPaymentSchema>;

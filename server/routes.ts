@@ -2,7 +2,6 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { storage } from "./storage";
-import { horoscopeService } from "./services/horoscopeService";
 import {
   insertContentTemplateSchema,
   insertDataSourceSchema,
@@ -14,12 +13,35 @@ import {
 import { queueService } from "./services/queueService";
 import { emailService } from "./services/emailService";
 import { aiAgent } from "./services/aiAgent";
-import { premiumEmailService } from "./services/premiumEmailService";
+// premiumEmailService removed - generic delivery service will replace it
 import { cronService } from "./services/cronService";
-import { productionDbService } from "./services/productionDbService";
 import { integrationService } from "./services/integrationService";
-import { astronomyService } from "./services/astronomyService";
 import { WebSocketServer, WebSocket } from "ws";
+import { activityMonitor } from "./services/activityMonitor";
+import { commandExecutor } from "./services/commandExecutor";
+import { systemReadinessService } from "./services/systemReadiness";
+import { contentGenerationService } from "./services/contentGenerationService";
+import { deliveryService } from "./services/deliveryService";
+import { dataSourceService } from "./services/dataSourceService";
+import { stripeService } from "./services/stripeService";
+import { licenseService } from "./services/licenseService";
+import { ollamaService } from "./services/ollamaService";
+import { validateBody, validateQuery } from "./middleware/validation";
+import { 
+  strictRateLimit, 
+  standardRateLimit, 
+  generousRateLimit,
+  aiGenerationRateLimit 
+} from "./middleware/rateLimiter";
+import {
+  activateLicenseSchema,
+  deactivateLicenseSchema,
+  createCheckoutSchema,
+  createSubscriptionCheckoutSchema,
+} from "./validation/monetization";
+import {
+  pullModelSchema,
+} from "./validation/ollama";
 
 // API Key Authentication Middleware
 async function requireApiKey(req: any, res: any, next: any, permissions: string[] = []) {
@@ -77,45 +99,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware
   await setupAuth(app);
 
-
-  // Test endpoints only in development  
-  if (process.env.NODE_ENV !== 'production') {
-    app.get("/api/test/production-db", async (req, res) => {
-      try {
-        const result = await productionDbService.testConnection();
-        res.json({
-          message: "Production database connection successful",
-          timestamp: new Date().toISOString(),
-          status: "connected"
-        });
-      } catch (error: any) {
-        console.error("Production database connection failed:", error);
-        res.status(500).json({ 
-          message: "Failed to connect to production database",
-          timestamp: new Date().toISOString(),
-          status: "error"
-        });
-      }
-    });
-
-    app.get("/api/test/horoscope-schema", async (req, res) => {
-      try {
-        const schema = await productionDbService.getHoroscopeColumns();
-        res.json({
-          message: "Horoscope table schema from production database",
-          columns: schema,
-          timestamp: new Date().toISOString()
-        });
-      } catch (error: any) {
-        console.error("Failed to get horoscope schema:", error);
-        res.status(500).json({ 
-          message: "Failed to get schema",
-          error: error.message
-        });
-      }
-    });
-  }
-
   // Auth routes
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
     try {
@@ -128,256 +111,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Health check endpoint
+  // Health check endpoint (public)
   app.get("/api/health", async (req, res) => {
     try {
+      const quickHealth = await systemReadinessService.getQuickHealth();
       res.json({
-        status: "healthy",
+        status: quickHealth.status,
+        icon: quickHealth.icon,
+        message: quickHealth.message,
         timestamp: new Date().toISOString(),
-        service: "Amoeba Horoscope Microservice",
-        version: "1.0.0",
-        cron_active: true // Simplified for production
+        service: "Amoeba AI Content Generation Platform",
+        version: "2.0.0",
+        platform: "universal_content_generator"
       });
     } catch (error) {
       console.error("Health check error:", error);
-      res.status(500).json({ message: "Health check failed" });
+      res.status(500).json({ 
+        status: "critical",
+        message: "Health check failed" 
+      });
+    }
+  });
+
+  // System readiness check (authenticated) - 🟢🟡🔴 Traffic Light System
+  app.get("/api/system/readiness", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const readiness = await systemReadinessService.getReadiness(userId);
+      res.json(readiness);
+    } catch (error) {
+      console.error("Readiness check error:", error);
+      res.status(500).json({ message: "Failed to check system readiness" });
     }
   });
 
   // Dashboard metrics
-  app.get("/api/dashboard/metrics", async (req, res) => {
+  app.get("/api/dashboard/metrics", isAuthenticated, async (req: any, res) => {
     try {
-      const metrics = await storage.getEmailMetrics();
+      const userId = req.user.claims.sub;
+      const metrics = await storage.getEmailMetrics(userId);
       res.json(metrics);
     } catch (error) {
       console.error("Error fetching dashboard metrics:", error);
       res.status(500).json({ message: "Failed to fetch metrics" });
-    }
-  });
-
-  // Internal dashboard endpoint for horoscopes (session auth)
-  app.get("/api/dashboard/horoscopes/today", isAuthenticated, async (req, res) => {
-    try {
-      const today = new Date().toISOString().split('T')[0];
-      const horoscopes = await horoscopeService.getAllHoroscopesForDate(today);
-      
-      res.json({
-        date: today,
-        horoscopes: horoscopes || []
-      });
-    } catch (error) {
-      console.error("Error fetching today's horoscopes:", error);
-      res.status(500).json({ message: "Failed to fetch horoscopes" });
-    }
-  });
-
-  // Get horoscope generation status (session auth)
-  app.get("/api/dashboard/horoscopes/generation-status", isAuthenticated, async (req, res) => {
-    try {
-      const { date } = req.query;
-      const targetDate = date as string || new Date().toISOString().split('T')[0];
-      const status = await storage.getHoroscopeGenerationByDate(targetDate);
-      
-      res.json(status || {
-        date: targetDate,
-        status: 'not_started',
-        totalSigns: 12,
-        completedSigns: 0
-      });
-    } catch (error) {
-      console.error("Error fetching generation status:", error);
-      res.status(500).json({ message: "Failed to fetch generation status" });
-    }
-  });
-
-  // =============================================================================
-  // HOROSCOPE API ENDPOINTS (API Key Required)
-  // =============================================================================
-
-  // Get today's horoscopes for all zodiac signs
-  app.get("/api/horoscopes/today", (req, res, next) => requireApiKey(req, res, next, ['read:horoscopes']), async (req, res) => {
-    try {
-      const today = new Date().toISOString().split('T')[0];
-      const horoscopes = await horoscopeService.getAllHoroscopesForDate(today);
-      
-      res.json({
-        date: today,
-        horoscopes: horoscopes || []
-      });
-    } catch (error) {
-      console.error("Error fetching today's horoscopes:", error);
-      res.status(500).json({ message: "Failed to fetch horoscopes" });
-    }
-  });
-
-  // Get horoscope for a specific zodiac sign
-  app.get("/api/horoscopes/:sign", (req, res, next) => requireApiKey(req, res, next, ['read:horoscopes']), async (req, res) => {
-    try {
-      const { sign } = req.params;
-      const today = new Date().toISOString().split('T')[0];
-      
-      const horoscope = await horoscopeService.getTodaysHoroscope(sign.toLowerCase());
-      
-      if (!horoscope) {
-        return res.status(404).json({ message: "Horoscope not found for this sign" });
-      }
-      
-      res.json({
-        sign: sign.toLowerCase(),
-        date: today,
-        horoscope
-      });
-    } catch (error) {
-      console.error(`Error fetching horoscope for ${req.params.sign}:`, error);
-      res.status(500).json({ message: "Failed to fetch horoscope" });
-    }
-  });
-
-  // =============================================================================
-  // ASTRONOMY & ASTRONOMICAL CONDITIONS
-  // =============================================================================
-
-  // Get comprehensive astronomical data for current date
-  app.get("/api/astronomy/current", async (req, res) => {
-    try {
-      const astronomicalData = await astronomyService.getAstronomicalData();
-      res.json({
-        timestamp: new Date().toISOString(),
-        calculation_method: astronomyService.isSwissEphemerisAvailable() ? 'Swiss Ephemeris (High Precision)' : 'Astronomy Engine',
-        ...astronomicalData
-      });
-    } catch (error) {
-      console.error("Error fetching current astronomical data:", error);
-      res.status(500).json({ message: "Failed to fetch astronomical data" });
-    }
-  });
-
-  // Get astronomical data for a specific date
-  app.get("/api/astronomy/date/:date", async (req, res) => {
-    try {
-      const { date } = req.params;
-      const requestedDate = new Date(date);
-      
-      if (isNaN(requestedDate.getTime())) {
-        return res.status(400).json({ message: "Invalid date format. Use YYYY-MM-DD" });
-      }
-      
-      const astronomicalData = await astronomyService.getAstronomicalData(requestedDate);
-      res.json({
-        requested_date: date,
-        calculation_method: astronomyService.isSwissEphemerisAvailable() ? 'Swiss Ephemeris (High Precision)' : 'Astronomy Engine',
-        ...astronomicalData
-      });
-    } catch (error) {
-      console.error(`Error fetching astronomical data for ${req.params.date}:`, error);
-      res.status(500).json({ message: "Failed to fetch astronomical data" });
-    }
-  });
-
-  // Get current planetary positions only
-  app.get("/api/astronomy/planets/current", async (req, res) => {
-    try {
-      const positions = await astronomyService.calculatePlanetaryPositions(new Date());
-      res.json({
-        timestamp: new Date().toISOString(),
-        calculation_method: astronomyService.isSwissEphemerisAvailable() ? 'Swiss Ephemeris (High Precision)' : 'Astronomy Engine',
-        planetary_positions: positions
-      });
-    } catch (error) {
-      console.error("Error fetching planetary positions:", error);
-      res.status(500).json({ message: "Failed to fetch planetary positions" });
-    }
-  });
-
-  // Get planetary positions for a specific date
-  app.get("/api/astronomy/planets/:date", async (req, res) => {
-    try {
-      const { date } = req.params;
-      const requestedDate = new Date(date);
-      
-      if (isNaN(requestedDate.getTime())) {
-        return res.status(400).json({ message: "Invalid date format. Use YYYY-MM-DD" });
-      }
-      
-      const positions = await astronomyService.calculatePlanetaryPositions(requestedDate);
-      res.json({
-        date: date,
-        calculation_method: astronomyService.isSwissEphemerisAvailable() ? 'Swiss Ephemeris (High Precision)' : 'Astronomy Engine',
-        planetary_positions: positions
-      });
-    } catch (error) {
-      console.error(`Error fetching planetary positions for ${req.params.date}:`, error);
-      res.status(500).json({ message: "Failed to fetch planetary positions" });
-    }
-  });
-
-  // Get current lunar phase information
-  app.get("/api/astronomy/moon/current", async (req, res) => {
-    try {
-      const lunarPhase = await astronomyService.calculateLunarPhase(new Date());
-      res.json({
-        timestamp: new Date().toISOString(),
-        lunar_phase: lunarPhase
-      });
-    } catch (error) {
-      console.error("Error fetching lunar phase:", error);
-      res.status(500).json({ message: "Failed to fetch lunar phase data" });
-    }
-  });
-
-  // Get current planetary aspects
-  app.get("/api/astronomy/aspects/current", async (req, res) => {
-    try {
-      const positions = await astronomyService.calculatePlanetaryPositions(new Date());
-      const aspects = await astronomyService.calculateAspects(positions);
-      res.json({
-        timestamp: new Date().toISOString(),
-        planetary_aspects: aspects
-      });
-    } catch (error) {
-      console.error("Error fetching planetary aspects:", error);
-      res.status(500).json({ message: "Failed to fetch planetary aspects" });
-    }
-  });
-
-  // Get astronomical conditions summary (plain text)
-  app.get("/api/astronomy/conditions", async (req, res) => {
-    try {
-      const conditions = await astronomyService.getCurrentConditions();
-      res.json({
-        timestamp: new Date().toISOString(),
-        conditions_summary: conditions,
-        calculation_method: astronomyService.isSwissEphemerisAvailable() ? 'Swiss Ephemeris (High Precision)' : 'Astronomy Engine'
-      });
-    } catch (error) {
-      console.error("Error fetching astronomical conditions:", error);
-      res.status(500).json({ message: "Failed to fetch astronomical conditions" });
-    }
-  });
-
-  // Get system status and available calculation methods
-  app.get("/api/astronomy/status", async (req, res) => {
-    try {
-      res.json({
-        timestamp: new Date().toISOString(),
-        service_status: "operational",
-        swiss_ephemeris_available: astronomyService.isSwissEphemerisAvailable(),
-        calculation_method: astronomyService.isSwissEphemerisAvailable() ? 'Swiss Ephemeris (High Precision)' : 'Astronomy Engine',
-        supported_bodies: [
-          "Sun", "Moon", "Mercury", "Venus", "Mars", 
-          "Jupiter", "Saturn", "Uranus", "Neptune", "Pluto"
-        ],
-        supported_features: [
-          "Planetary positions",
-          "Lunar phases", 
-          "Planetary aspects",
-          "Zodiacal positions",
-          "Julian day calculations"
-        ]
-      });
-    } catch (error) {
-      console.error("Error fetching astronomy service status:", error);
-      res.status(500).json({ message: "Failed to fetch service status" });
     }
   });
 
@@ -386,9 +162,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // =============================================================================
 
   // Get all campaigns
-  app.get("/api/campaigns", isAuthenticated, async (req, res) => {
+  app.get("/api/campaigns", isAuthenticated, async (req: any, res) => {
     try {
-      const campaigns = await storage.getCampaigns();
+      const userId = req.user.claims.sub;
+      const campaigns = await storage.getCampaigns(userId);
       res.json(campaigns);
     } catch (error) {
       console.error("Error fetching campaigns:", error);
@@ -397,9 +174,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Create a new campaign
-  app.post("/api/campaigns", isAuthenticated, async (req, res) => {
+  app.post("/api/campaigns", isAuthenticated, async (req: any, res) => {
     try {
-      const campaign = await storage.createCampaign(req.body);
+      const userId = req.user.claims.sub;
+      const campaign = await storage.createCampaign({ ...req.body, userId });
       res.status(201).json(campaign);
     } catch (error) {
       console.error("Error creating campaign:", error);
@@ -408,9 +186,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Update campaign
-  app.put("/api/campaigns/:id", isAuthenticated, async (req, res) => {
+  app.put("/api/campaigns/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const campaign = await storage.updateCampaign(req.params.id, req.body);
+      const userId = req.user.claims.sub;
+      const campaign = await storage.updateCampaign(req.params.id, userId, req.body);
       if (!campaign) {
         return res.status(404).json({ message: "Campaign not found" });
       }
@@ -422,9 +201,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Delete campaign
-  app.delete("/api/campaigns/:id", isAuthenticated, async (req, res) => {
+  app.delete("/api/campaigns/:id", isAuthenticated, async (req: any, res) => {
     try {
-      await storage.deleteCampaign(req.params.id);
+      const userId = req.user.claims.sub;
+      await storage.deleteCampaign(req.params.id, userId);
       res.status(204).send();
     } catch (error) {
       console.error("Error deleting campaign:", error);
@@ -437,9 +217,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // =============================================================================
 
   // Send email
-  app.post("/api/emails/send", isAuthenticated, async (req, res) => {
+  app.post("/api/emails/send", isAuthenticated, async (req: any, res) => {
     try {
-      const result = await emailService.sendEmail(req.body);
+      const userId = req.user.claims.sub;
+      const result = await emailService.sendEmail(req.body, userId);
       res.json(result);
     } catch (error) {
       console.error("Error sending email:", error);
@@ -448,9 +229,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get email providers
-  app.get("/api/emails/providers", isAuthenticated, async (req, res) => {
+  app.get("/api/emails/providers", isAuthenticated, async (req: any, res) => {
     try {
-      const providers = await storage.getEmailProviders();
+      const userId = req.user.claims.sub;
+      const providers = await storage.getEmailConfigurations(userId);
       res.json(providers);
     } catch (error) {
       console.error("Error fetching email providers:", error);
@@ -459,9 +241,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Create/update email provider
-  app.post("/api/emails/providers", isAuthenticated, async (req, res) => {
+  app.post("/api/emails/providers", isAuthenticated, async (req: any, res) => {
     try {
-      const provider = await storage.createEmailProvider(req.body);
+      const userId = req.user.claims.sub;
+      const provider = await storage.createEmailConfiguration({ ...req.body, userId });
       res.status(201).json(provider);
     } catch (error) {
       console.error("Error creating email provider:", error);
@@ -487,12 +270,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get queue jobs
   app.get("/api/queue/jobs", isAuthenticated, async (req, res) => {
     try {
-      const { status, limit = 50, offset = 0 } = req.query;
-      const jobs = await queueService.getJobs({
-        status: status as string,
-        limit: parseInt(limit as string),
-        offset: parseInt(offset as string),
-      });
+      const { status, limit = 50 } = req.query;
+      const jobs = await storage.getQueueJobs(status as string, parseInt(limit as string));
       res.json(jobs);
     } catch (error) {
       console.error("Error fetching queue jobs:", error);
@@ -514,8 +293,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Retry failed job
   app.post("/api/queue/jobs/:id/retry", isAuthenticated, async (req, res) => {
     try {
-      const job = await queueService.retryJob(req.params.id);
-      res.json(job);
+      // Reset job status to pending and reset attempts
+      await storage.updateQueueJob(req.params.id, {
+        status: 'pending',
+        attempts: 0,
+        error: null,
+      });
+      res.json({ message: 'Job queued for retry' });
     } catch (error) {
       console.error("Error retrying job:", error);
       res.status(500).json({ message: "Failed to retry job" });
@@ -525,7 +309,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Cancel job
   app.delete("/api/queue/jobs/:id", isAuthenticated, async (req, res) => {
     try {
-      await queueService.cancelJob(req.params.id);
+      await storage.updateQueueJob(req.params.id, {
+        status: 'failed',
+        error: 'Cancelled by user',
+      });
       res.status(204).send();
     } catch (error) {
       console.error("Error canceling job:", error);
@@ -536,8 +323,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Pause/resume queue
   app.post("/api/queue/pause", isAuthenticated, async (req, res) => {
     try {
-      await queueService.pause();
-      res.json({ message: "Queue paused successfully" });
+      // Queue service doesn't have pause - it processes automatically
+      // This is a stub endpoint for future implementation
+      res.json({ message: "Queue paused successfully (stub)" });
     } catch (error) {
       console.error("Error pausing queue:", error);
       res.status(500).json({ message: "Failed to pause queue" });
@@ -546,8 +334,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/queue/resume", isAuthenticated, async (req, res) => {
     try {
-      await queueService.resume();
-      res.json({ message: "Queue resumed successfully" });
+      // Queue service doesn't have resume - it processes automatically
+      // This is a stub endpoint for future implementation
+      res.json({ message: "Queue resumed successfully (stub)" });
     } catch (error) {
       console.error("Error resuming queue:", error);
       res.status(500).json({ message: "Failed to resume queue" });
@@ -559,10 +348,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // =============================================================================
 
   // Chat with AI agent
-  app.post("/api/agent/chat", isAuthenticated, async (req, res) => {
+  app.post("/api/agent/chat", isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
       const { message } = req.body;
-      const response = await aiAgent.chat(message);
+      
+      if (!message || typeof message !== 'string') {
+        return res.status(400).json({ message: 'Invalid message' });
+      }
+      
+      const response = await aiAgent.processMessage(userId, message);
       res.json(response);
     } catch (error) {
       console.error("Error in AI agent chat:", error);
@@ -571,9 +366,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get conversation history
-  app.get("/api/agent/conversations", isAuthenticated, async (req, res) => {
+  app.get("/api/agent/conversations", isAuthenticated, async (req: any, res) => {
     try {
-      const conversations = await storage.getAgentConversations();
+      const userId = req.user.claims.sub;
+      const conversations = await storage.getAgentConversations(userId);
       res.json(conversations);
     } catch (error) {
       console.error("Error fetching conversations:", error);
@@ -582,9 +378,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get AI suggestions
-  app.get("/api/agent/suggestions", async (req, res) => {
+  app.get("/api/agent/suggestions", isAuthenticated, async (req: any, res) => {
     try {
-      const suggestions = await aiAgent.suggestOptimizations();
+      const userId = req.user.claims.sub;
+      const suggestions = await aiAgent.suggestOptimizations(userId);
       res.json({ suggestions });
     } catch (error) {
       console.error("Optimization suggestions error:", error);
@@ -597,13 +394,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // =============================================================================
 
   // Get email analytics
-  app.get("/api/analytics/emails", isAuthenticated, async (req, res) => {
+  app.get("/api/analytics/emails", isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
       const { startDate, endDate } = req.query;
-      const analytics = await storage.getEmailAnalytics({
-        startDate: startDate as string,
-        endDate: endDate as string,
-      });
+      const analytics = await storage.getEmailMetrics(
+        userId,
+        startDate ? new Date(startDate as string) : undefined,
+        endDate ? new Date(endDate as string) : undefined
+      );
       res.json(analytics);
     } catch (error) {
       console.error("Error fetching email analytics:", error);
@@ -612,10 +411,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get campaign performance
-  app.get("/api/analytics/campaigns/:id", isAuthenticated, async (req, res) => {
+  app.get("/api/analytics/campaigns/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const analytics = await storage.getCampaignAnalytics(req.params.id);
-      res.json(analytics);
+      const userId = req.user.claims.sub;
+      // Stub - return basic campaign stats from email logs
+      const campaign = await storage.getCampaign(req.params.id, userId);
+      if (!campaign) {
+        return res.status(404).json({ message: 'Campaign not found' });
+      }
+      res.json({ 
+        campaign,
+        stats: { sent: 0, delivered: 0, bounced: 0, failed: 0 }
+      });
     } catch (error) {
       console.error("Error fetching campaign analytics:", error);
       res.status(500).json({ message: "Failed to fetch campaign analytics" });
@@ -627,10 +434,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // =============================================================================
 
   // Get system configurations
-  app.get("/api/system/config", isAuthenticated, async (req, res) => {
+  app.get("/api/system/config", isAuthenticated, async (req: any, res) => {
     try {
-      const config = await storage.getSystemConfig();
-      res.json(config);
+      const userId = req.user.claims.sub;
+      // Return basic config - can be expanded later
+      res.json({ 
+        version: '2.0.0',
+        features: ['content_generation', 'scheduling', 'delivery'],
+        userId 
+      });
     } catch (error) {
       console.error("Error fetching system config:", error);
       res.status(500).json({ message: "Failed to fetch system config" });
@@ -638,10 +450,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Update system configuration
-  app.put("/api/system/config", isAuthenticated, async (req, res) => {
+  app.put("/api/system/config", isAuthenticated, async (req: any, res) => {
     try {
-      const config = await storage.updateSystemConfig(req.body);
-      res.json(config);
+      const userId = req.user.claims.sub;
+      // Stub - acknowledge update
+      res.json({ message: 'Configuration updated', userId });
     } catch (error) {
       console.error("Error updating system config:", error);
       res.status(500).json({ message: "Failed to update system config" });
@@ -721,22 +534,204 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get integrations
   app.get("/api/integrations", isAuthenticated, async (req, res) => {
     try {
-      const integrations = await storage.getIntegrations();
-      res.json(integrations);
+      const apiKeys = await integrationService.getApiKeys();
+      const webhooks = await storage.getActiveWebhooks();
+      res.json({ apiKeys, webhooks });
     } catch (error) {
       console.error("Error fetching integrations:", error);
       res.status(500).json({ message: "Failed to fetch integrations" });
     }
   });
 
-  // Create API key
+  // Create API key (legacy endpoint - use /api/api-keys instead)
   app.post("/api/integrations/keys", isAuthenticated, async (req, res) => {
     try {
-      const apiKey = await integrationService.createApiKey(req.body);
-      res.status(201).json(apiKey);
+      const { name, permissions } = req.body;
+      const result = await integrationService.generateApiKey(name, permissions);
+      res.status(201).json(result);
     } catch (error) {
       console.error("Error creating API key:", error);
       res.status(500).json({ message: "Failed to create API key" });
+    }
+  });
+
+  // =============================================================================
+  // BYOK CREDENTIALS MANAGEMENT (Auth Required)
+  // =============================================================================
+
+  // AI Credentials CRUD
+  app.get("/api/ai-credentials", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const credentials = await storage.getAiCredentials(userId);
+      
+      // Don't return the full API key in list view for security
+      const safeCredentials = credentials.map(cred => ({
+        ...cred,
+        apiKey: `${cred.apiKey.substring(0, 8)}...${cred.apiKey.substring(cred.apiKey.length - 4)}`,
+      }));
+      
+      res.json(safeCredentials);
+    } catch (error) {
+      console.error("Error fetching AI credentials:", error);
+      res.status(500).json({ message: "Failed to fetch AI credentials" });
+    }
+  });
+
+  app.post("/api/ai-credentials", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const credential = await storage.createAiCredential({ ...req.body, userId });
+      
+      // Mask the API key in response (show first 8 and last 4 chars)
+      res.status(201).json({
+        ...credential,
+        apiKey: `${credential.apiKey.substring(0, 8)}...${credential.apiKey.substring(credential.apiKey.length - 4)}`,
+      });
+    } catch (error) {
+      console.error("Error creating AI credential:", error);
+      res.status(500).json({ message: "Failed to create AI credential" });
+    }
+  });
+
+  app.get("/api/ai-credentials/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const credential = await storage.getAiCredential(req.params.id, userId);
+      
+      if (!credential) {
+        return res.status(404).json({ message: "AI credential not found" });
+      }
+      
+      // Return full credential (caller has permission)
+      res.json(credential);
+    } catch (error) {
+      console.error("Error fetching AI credential:", error);
+      res.status(500).json({ message: "Failed to fetch AI credential" });
+    }
+  });
+
+  app.put("/api/ai-credentials/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const credential = await storage.updateAiCredential(req.params.id, userId, req.body);
+      
+      if (!credential) {
+        return res.status(404).json({ message: "AI credential not found" });
+      }
+      
+      res.json({
+        ...credential,
+        apiKey: `${credential.apiKey.substring(0, 8)}...${credential.apiKey.substring(credential.apiKey.length - 4)}`,
+      });
+    } catch (error) {
+      console.error("Error updating AI credential:", error);
+      res.status(500).json({ message: "Failed to update AI credential" });
+    }
+  });
+
+  app.delete("/api/ai-credentials/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const deleted = await storage.deleteAiCredential(req.params.id, userId);
+      
+      if (!deleted) {
+        return res.status(404).json({ message: "AI credential not found" });
+      }
+      
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting AI credential:", error);
+      res.status(500).json({ message: "Failed to delete AI credential" });
+    }
+  });
+
+  // Email Service Credentials CRUD
+  app.get("/api/email-credentials", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const credentials = await storage.getEmailServiceCredentials(userId);
+      
+      // Mask sensitive fields in list view
+      const safeCredentials = credentials.map(cred => ({
+        ...cred,
+        apiKey: cred.apiKey ? `${cred.apiKey.substring(0, 8)}...` : null,
+        awsSecretAccessKey: cred.awsSecretAccessKey ? '***HIDDEN***' : null,
+      }));
+      
+      res.json(safeCredentials);
+    } catch (error) {
+      console.error("Error fetching email credentials:", error);
+      res.status(500).json({ message: "Failed to fetch email credentials" });
+    }
+  });
+
+  app.post("/api/email-credentials", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const credential = await storage.createEmailServiceCredential({ ...req.body, userId });
+      
+      res.status(201).json({
+        ...credential,
+        apiKey: credential.apiKey ? `${credential.apiKey.substring(0, 8)}...` : null,
+        awsSecretAccessKey: credential.awsSecretAccessKey ? '***HIDDEN***' : null,
+        });
+      } catch (error) {
+      console.error("Error creating email credential:", error);
+      res.status(500).json({ message: "Failed to create email credential" });
+    }
+  });
+
+  app.get("/api/email-credentials/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const credential = await storage.getEmailServiceCredential(req.params.id, userId);
+      
+      if (!credential) {
+        return res.status(404).json({ message: "Email credential not found" });
+      }
+      
+      // Return full credential (caller has permission)
+      res.json(credential);
+    } catch (error) {
+      console.error("Error fetching email credential:", error);
+      res.status(500).json({ message: "Failed to fetch email credential" });
+    }
+  });
+
+  app.put("/api/email-credentials/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const credential = await storage.updateEmailServiceCredential(req.params.id, userId, req.body);
+      
+      if (!credential) {
+        return res.status(404).json({ message: "Email credential not found" });
+      }
+      
+      res.json({
+        ...credential,
+        apiKey: credential.apiKey ? `${credential.apiKey.substring(0, 8)}...` : null,
+        awsSecretAccessKey: credential.awsSecretAccessKey ? '***HIDDEN***' : null,
+      });
+    } catch (error) {
+      console.error("Error updating email credential:", error);
+      res.status(500).json({ message: "Failed to update email credential" });
+    }
+  });
+
+  app.delete("/api/email-credentials/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const deleted = await storage.deleteEmailServiceCredential(req.params.id, userId);
+      
+      if (!deleted) {
+        return res.status(404).json({ message: "Email credential not found" });
+      }
+      
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting email credential:", error);
+      res.status(500).json({ message: "Failed to delete email credential" });
     }
   });
 
@@ -752,101 +747,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching cron status:", error);
       res.status(500).json({ message: "Failed to fetch cron status" });
-    }
-  });
-
-  // Manually trigger horoscope generation
-  app.post("/api/cron/trigger-horoscopes", isAuthenticated, async (req, res) => {
-    try {
-      const { date } = req.body;
-      const result = await cronService.triggerHoroscopeGeneration(date);
-      
-      res.json({
-        message: "Horoscope generation triggered successfully",
-        ...result
-      });
-    } catch (error) {
-      console.error("Error triggering horoscope generation:", error);
-      res.status(500).json({ message: "Failed to trigger horoscope generation" });
-    }
-  });
-
-  // Manually trigger premium emails
-  app.post("/api/cron/trigger-emails", isAuthenticated, async (req, res) => {
-    try {
-      const { date } = req.body;
-      const result = await cronService.triggerPremiumEmails(date);
-      
-      res.json({
-        message: "Premium email distribution triggered successfully",
-        ...result
-      });
-    } catch (error) {
-      console.error("Error triggering premium emails:", error);
-      res.status(500).json({ message: "Failed to trigger premium emails" });
-    }
-  });
-
-  // =============================================================================
-  // TEST ENDPOINTS (Remove in production)
-  // =============================================================================
-
-  // Test horoscope generation (development only)
-  if (process.env.NODE_ENV !== 'production') {
-    app.post("/api/test/generate-horoscopes", async (req, res) => {
-      try {
-        const { date } = req.body;
-        const targetDate = date || new Date().toISOString().split('T')[0];
-        
-        const result = await horoscopeService.generateDailyHoroscopes(targetDate);
-        
-        res.json({
-          message: "Horoscope generation test completed",
-          date: targetDate,
-          result: result
-        });
-      } catch (error) {
-        console.error("Error in test horoscope generation:", error);
-        res.status(500).json({ message: "Failed to generate test horoscopes" });
-      }
-    });
-  }
-
-  // Test premium email distribution (no auth required for testing)
-  app.post("/api/test/send-premium-emails", async (req, res) => {
-    try {
-      const { date } = req.body;
-      const targetDate = date || new Date().toISOString().split('T')[0];
-      
-      const result = await premiumEmailService.sendDailyHoroscopesToPremiumUsers(targetDate);
-      
-      res.json({
-        message: "Premium email test completed",
-        date: targetDate,
-        result: result
-      });
-    } catch (error) {
-      console.error("Error in test premium email distribution:", error);
-      res.status(500).json({ message: "Failed to send test premium emails" });
-    }
-  });
-
-  // Test production database connection (no auth required for testing)
-  app.get("/api/test/production-users", async (req, res) => {
-    try {
-      const premiumUsers = await productionDbService.getPremiumUsers();
-      
-      res.json({
-        message: "Production database connection test",
-        userCount: premiumUsers.length,
-        users: premiumUsers.slice(0, 5) // Return first 5 users as sample
-      });
-    } catch (error) {
-      console.error("Error testing production database:", error);
-      res.status(500).json({ 
-        message: "Failed to connect to production database",
-        error: error.message 
-      });
     }
   });
 
@@ -1233,30 +1133,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: 'Template not found' });
       }
 
-      // STUB IMPLEMENTATION - Real AI content generation not yet implemented
-      // This mock version creates placeholder content for UI testing
-      const mockContent = `[MOCK] Generated content for template "${template.name}" at ${new Date().toISOString()}`;
-      
-      const generatedContent = await storage.createGeneratedContent({
-        templateId: templateId,
-        userId: userId,
-        content: mockContent,
-        generatedAt: new Date(),
-        metadata: { 
-          mock: true, 
-          stub: true,
-          note: 'This is placeholder content. Real AI generation requires user-supplied API keys and data source integration.',
-          timestamp: new Date().toISOString() 
-        }
+      // Generate content using real AI
+      const generationResult = await contentGenerationService.generate({
+        templateId,
+        userId,
+        variables: req.body.variables || {},
+        credentialId: req.body.credentialId,
       });
       
-      res.json({ 
-        message: 'Content generation completed (MOCK)',
+      // Save generated content
+      const generatedContent = await storage.createGeneratedContent({
+        templateId,
+        userId,
+        content: generationResult.content,
+        metadata: generationResult.metadata,
+      });
+
+      // Deliver content if channels configured
+      try {
+        const deliveryResult = await deliveryService.deliver({
+          content: generationResult.content,
+          contentId: generatedContent.id,
+          userId,
+          templateId,
+        });
+
+        return res.json({ 
+          success: true,
         contentId: generatedContent.id,
         templateName: template.name,
-        warning: 'This is a stub implementation. Real AI content generation is not yet implemented.',
-        mock: true
-      });
+          tokens: generationResult.metadata.tokens.total,
+          cost: generationResult.metadata.cost,
+          duration: generationResult.metadata.duration,
+          delivery: {
+            attempted: deliveryResult.delivered.length,
+            succeeded: deliveryResult.delivered.filter(d => d.success).length,
+            failed: deliveryResult.delivered.filter(d => !d.success).length,
+          },
+        });
+      } catch (deliveryError: any) {
+        // Content generated but delivery failed
+        return res.json({
+          success: true,
+          contentId: generatedContent.id,
+          templateName: template.name,
+          tokens: generationResult.metadata.tokens.total,
+          cost: generationResult.metadata.cost,
+          warning: `Content generated but delivery failed: ${deliveryError.message}`,
+        });
+      }
     } catch (error) {
       console.error('Error generating content:', error);
       res.status(500).json({ message: 'Failed to generate content', error: error instanceof Error ? error.message : 'Unknown error' });
@@ -1275,32 +1200,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'No active templates found' });
       }
 
-      // STUB IMPLEMENTATION - Real batch AI generation not yet implemented
+      // Batch generate content using real AI
       const results = [];
+      let totalCost = 0;
+      let totalTokens = 0;
+
       for (const template of activeTemplates) {
         try {
-          const mockContent = `[MOCK] Batch generated content for template "${template.name}" at ${new Date().toISOString()}`;
+          const generationResult = await contentGenerationService.generate({
+            templateId: template.id,
+            userId,
+            variables: req.body.variables || {},
+          });
           
           const generatedContent = await storage.createGeneratedContent({
             templateId: template.id,
-            userId: userId,
-            content: mockContent,
-            generatedAt: new Date(),
+            userId,
+            content: generationResult.content,
             metadata: { 
+              ...generationResult.metadata,
               batch: true, 
-              mock: true,
-              stub: true,
-              note: 'This is placeholder content. Real AI generation requires user-supplied API keys and data source integration.',
-              timestamp: new Date().toISOString() 
-            }
+            },
           });
+
+          totalCost += generationResult.metadata.cost;
+          totalTokens += generationResult.metadata.tokens.total;
           
           results.push({
             templateId: template.id,
             templateName: template.name,
             contentId: generatedContent.id,
-            success: true
+            tokens: generationResult.metadata.tokens.total,
+            cost: generationResult.metadata.cost,
+            success: true,
           });
+
+          // Attempt delivery (don't fail batch if delivery fails)
+          try {
+            await deliveryService.deliver({
+              content: generationResult.content,
+              contentId: generatedContent.id,
+              userId,
+              templateId: template.id,
+            });
+          } catch (deliveryError) {
+            console.error(`Delivery failed for template ${template.name}:`, deliveryError);
+          }
+
         } catch (error) {
           results.push({
             templateId: template.id,
@@ -1314,12 +1260,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const successCount = results.filter(r => r.success).length;
       
       res.json({ 
-        message: `Batch generation completed (MOCK): ${successCount}/${activeTemplates.length} templates successful`,
-        results: results,
+        message: `Batch generation complete: ${successCount}/${activeTemplates.length} templates successful`,
+        results,
         totalTemplates: activeTemplates.length,
-        successCount: successCount,
-        warning: 'This is a stub implementation. Real AI content generation is not yet implemented.',
-        mock: true
+        successCount,
+        totalTokens,
+        totalCost,
       });
     } catch (error) {
       console.error('Error in batch generation:', error);
@@ -1327,114 +1273,440 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // =============================================================================
+  // MONETIZATION (Tree Fiddy! 🦕)
+  // =============================================================================
+
+  // License activation (requires authentication)
+  app.post("/api/licenses/activate", 
+    isAuthenticated, 
+    strictRateLimit,
+    validateBody(activateLicenseSchema),
+    async (req: any, res) => {
+      try {
+        const userId = req.user.claims.sub;
+        const { licenseKey } = req.body;
+
+        const result = await licenseService.activateLicense(licenseKey, userId);
+        
+        if (!result.isValid) {
+          return res.status(400).json({ success: false, message: result.message });
+        }
+        
+        res.json({ 
+          success: true, 
+          message: result.message,
+          license: {
+            status: result.status,
+            activatedAt: result.activatedAt,
+            deviceFingerprint: result.deviceFingerprint,
+          }
+        });
+      } catch (error: any) {
+        console.error('Error activating license:', error);
+        res.status(400).json({ message: error.message || 'Failed to activate license' });
+      }
+    }
+  );
+
+  // License deactivation (self-service)
+  app.post("/api/licenses/deactivate", 
+    isAuthenticated, 
+    strictRateLimit,
+    validateBody(deactivateLicenseSchema),
+    async (req: any, res) => {
+      try {
+        const userId = req.user.claims.sub;
+        const { licenseKey } = req.body;
+
+        const success = await licenseService.deactivateLicense(userId, licenseKey);
+        
+        res.json({ 
+          success, 
+          message: 'License deactivated successfully. You can now activate it on another device.',
+        });
+      } catch (error: any) {
+        console.error('Error deactivating license:', error);
+        res.status(400).json({ success: false, message: error.message || 'Failed to deactivate license' });
+      }
+    }
+  );
+
+  // Get user licenses
+  app.get("/api/licenses", 
+    isAuthenticated, 
+    generousRateLimit,
+    async (req: any, res) => {
+      try {
+        const userId = req.user.claims.sub;
+        const licenses = await storage.getUserLicenses(userId);
+        
+        // Mask sensitive data
+        const safeLicenses = licenses.map(license => ({
+          id: license.id,
+          licenseKey: `${license.licenseKey.substring(0, 12)}...${license.licenseKey.substring(license.licenseKey.length - 4)}`,
+          status: license.status,
+          activatedAt: license.activatedAt,
+          deactivatedAt: license.deactivatedAt,
+          lastValidated: license.lastValidated,
+          createdAt: license.createdAt,
+        }));
+        
+        res.json(safeLicenses);
+      } catch (error: any) {
+        console.error('Error fetching licenses:', error);
+        res.status(500).json({ message: 'Failed to fetch licenses' });
+      }
+    }
+  );
+
+  // Validate license (used by client on startup)
+  app.post("/api/licenses/validate", 
+    isAuthenticated, 
+    standardRateLimit,
+    async (req: any, res) => {
+      try {
+        const userId = req.user.claims.sub;
+
+        const result = await licenseService.validateLicense(userId);
+        
+        res.json({ 
+          valid: result.isValid, 
+          message: result.message,
+          license: result.isValid ? {
+            licenseKey: result.licenseKey,
+            status: result.status,
+            activatedAt: result.activatedAt,
+          } : null
+        });
+      } catch (error: any) {
+        console.error('Error validating license:', error);
+        res.status(500).json({ message: 'Failed to validate license', valid: false });
+      }
+    }
+  );
+
+  // Create checkout session for license purchase
+  app.post("/api/payments/checkout/license", 
+    isAuthenticated, 
+    strictRateLimit,
+    validateBody(createCheckoutSchema),
+    async (req: any, res) => {
+      try {
+        const userId = req.user.claims.sub;
+        const { successUrl, cancelUrl, email } = req.body;
+
+        const checkoutUrl = await stripeService.createLicenseCheckoutSession({
+          userId,
+          email: email || req.user.claims.email || 'no-email@example.com',
+          type: 'license',
+          successUrl,
+          cancelUrl,
+        });
+
+        res.json({ 
+          success: true,
+          url: checkoutUrl,
+        });
+      } catch (error: any) {
+        console.error('Error creating checkout session:', error);
+        res.status(500).json({ message: error.message || 'Failed to create checkout session' });
+      }
+    }
+  );
+
+  // Create checkout session for managed hosting subscription
+  app.post("/api/payments/checkout/subscription", 
+    isAuthenticated, 
+    strictRateLimit,
+    validateBody(createSubscriptionCheckoutSchema),
+    async (req: any, res) => {
+      try {
+        const userId = req.user.claims.sub;
+        const { priceId, successUrl, cancelUrl, email } = req.body;
+
+        const checkoutUrl = await stripeService.createSubscriptionCheckoutSession({
+          userId,
+          email: email || req.user.claims.email || 'no-email@example.com',
+          type: 'subscription',
+          priceId,
+          successUrl,
+          cancelUrl,
+        });
+
+        res.json({ 
+          success: true,
+          url: checkoutUrl,
+        });
+      } catch (error: any) {
+        console.error('Error creating subscription checkout:', error);
+        res.status(500).json({ message: error.message || 'Failed to create subscription checkout' });
+      }
+    }
+  );
+
+  // Stripe webhook handler (unauthenticated - Stripe signs the payload)
+  app.post("/api/webhooks/stripe", async (req, res) => {
+    try {
+      // Note: In production, verify webhook signature with Stripe SDK
+      // For now, assume event is valid (placeholder implementation)
+      const event = req.body;
+      
+      await stripeService.handleWebhook(event);
+      
+      res.json({ received: true });
+    } catch (error: any) {
+      console.error('Error processing Stripe webhook:', error);
+      res.status(400).json({ message: `Webhook Error: ${error.message}` });
+    }
+  });
+
+  // Get user subscription
+  app.get("/api/subscriptions/current", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const subscription = await storage.getUserSubscription(userId);
+      
+      if (!subscription) {
+        return res.json({ subscription: null });
+      }
+
+      res.json({ subscription });
+    } catch (error: any) {
+      console.error('Error fetching subscription:', error);
+      res.status(500).json({ message: 'Failed to fetch subscription' });
+    }
+  });
+
+  // Get user payments
+  app.get("/api/payments", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const limit = parseInt(req.query.limit as string) || 50;
+      const payments = await storage.getUserPayments(userId, limit);
+      res.json(payments);
+    } catch (error: any) {
+      console.error('Error fetching payments:', error);
+      res.status(500).json({ message: 'Failed to fetch payments' });
+    }
+  });
+
+  // =============================================================================
+  // OLLAMA (Local AI Models - Free!)
+  // =============================================================================
+
+  // Check Ollama health
+  app.get("/api/ollama/health", 
+    isAuthenticated, 
+    generousRateLimit,
+    async (req: any, res) => {
+      try {
+        const host = req.query.host as string | undefined;
+        const health = await ollamaService.checkHealth(host);
+        res.json(health);
+      } catch (error: any) {
+        console.error('Error checking Ollama health:', error);
+        res.status(500).json({ message: 'Failed to check Ollama health', available: false });
+      }
+    }
+  );
+
+  // List Ollama models
+  app.get("/api/ollama/models", 
+    isAuthenticated, 
+    generousRateLimit,
+    async (req: any, res) => {
+      try {
+        const host = req.query.host as string | undefined;
+        const models = await ollamaService.listModels(host);
+        res.json(models);
+      } catch (error: any) {
+        console.error('Error listing Ollama models:', error);
+        res.status(500).json({ message: error.message || 'Failed to list Ollama models', models: [] });
+      }
+    }
+  );
+
+  // Get recommended Ollama models
+  app.get("/api/ollama/recommended", 
+    isAuthenticated, 
+    generousRateLimit,
+    async (req: any, res) => {
+      try {
+        const recommended = ollamaService.getRecommendedModels();
+        res.json({ models: recommended });
+      } catch (error: any) {
+        console.error('Error getting recommended models:', error);
+        res.status(500).json({ message: 'Failed to get recommended models' });
+      }
+    }
+  );
+
+  // Get Ollama setup instructions
+  app.get("/api/ollama/setup", 
+    isAuthenticated, 
+    generousRateLimit,
+    async (req: any, res) => {
+      try {
+        const instructions = ollamaService.getSetupInstructions();
+        res.json(instructions);
+      } catch (error: any) {
+        console.error('Error getting setup instructions:', error);
+        res.status(500).json({ message: 'Failed to get setup instructions' });
+      }
+    }
+  );
+
+  // Pull an Ollama model
+  app.post("/api/ollama/pull", 
+    isAuthenticated, 
+    strictRateLimit,
+    validateBody(pullModelSchema),
+    async (req: any, res) => {
+      try {
+        const { modelName, host } = req.body;
+
+        // This is a long-running operation, acknowledge immediately
+        res.json({ 
+          success: true, 
+          message: `Started pulling model "${modelName}". This may take several minutes depending on model size.`,
+        });
+
+        // Pull in the background
+        ollamaService.pullModel(modelName, host).then(() => {
+          activityMonitor.logActivity('success', `✅ Ollama model "${modelName}" pulled successfully`);
+        }).catch((error) => {
+          activityMonitor.logError(error, `Ollama Pull: ${modelName}`);
+        });
+
+      } catch (error: any) {
+        console.error('Error starting model pull:', error);
+        res.status(500).json({ message: error.message || 'Failed to start model pull' });
+      }
+    }
+  );
+
+  // Delete an Ollama model
+  app.delete("/api/ollama/models/:modelName", 
+    isAuthenticated, 
+    strictRateLimit,
+    async (req: any, res) => {
+      try {
+        const { modelName } = req.params;
+        const host = req.query.host as string | undefined;
+
+        await ollamaService.deleteModel(modelName, host);
+        
+        activityMonitor.logActivity('info', `🗑️  Ollama model "${modelName}" deleted`);
+        res.json({ success: true, message: `Model "${modelName}" deleted successfully` });
+      } catch (error: any) {
+        console.error('Error deleting Ollama model:', error);
+        res.status(500).json({ message: error.message || 'Failed to delete model' });
+      }
+    }
+  );
+
   // Create and configure WebSocket server
   const httpServer = createServer(app);
   const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
 
-  // WebSocket connection handling
-  // Command handlers
-  const commandHandlers: Record<string, () => Promise<string>> = {
-    help: async () => {
-      return `Available commands:
-  generate [sign]  - Trigger horoscope generation (all signs or specific)
-  status          - Show generation status
-  queue           - Show queue metrics
-  health          - Check system health
-  clear           - Clear terminal output
-  help            - Show this help message`;
-    },
-    generate: async () => {
-      try {
-        const result = await cronService.triggerHoroscopeGeneration();
-        return `✓ Horoscope generation triggered successfully!\nStarted generation for all 12 zodiac signs.`;
-      } catch (error: any) {
-        throw new Error(`Generation failed: ${error.message}`);
-      }
-    },
-    status: async () => {
-      try {
-        const today = new Date().toISOString().split('T')[0];
-        const horoscopes = await horoscopeService.getAllHoroscopesForDate(today);
-        return `Generation status for ${today}:
-  Completed: ${horoscopes?.length || 0}/12 signs
-  ${horoscopes?.map((h: any) => `✓ ${h.zodiacSignId}`).join('\n  ') || 'No horoscopes generated yet'}`;
-      } catch (error: any) {
-        throw new Error(`Status check failed: ${error.message}`);
-      }
-    },
-    queue: async () => {
-      try {
-        const metrics = await storage.getQueueMetrics();
-        return `Queue Status:
-  Pending: ${metrics.pending}
-  Processing: ${metrics.processing}
-  Completed: ${metrics.completed}
-  Failed: ${metrics.failed}`;
-      } catch (error: any) {
-        throw new Error(`Queue check failed: ${error.message}`);
-      }
-    },
-    health: async () => {
-      const astronomyStatus = astronomyService ? '✓ Swiss Ephemeris active' : '✗ Astronomy service down';
-      return `System Health:
-  ${astronomyStatus}
-  ✓ Database connected
-  ✓ Queue service running
-  ✓ WebSocket connected`;
-    },
-  };
+  // ===============================================
+  // WEBSOCKET - REAL-TIME ACTIVITY MONITOR & TERMINAL
+  // ===============================================
 
-  wss.on('connection', (ws: WebSocket) => {
-    console.log('WebSocket client connected');
+  wss.on('connection', (ws: WebSocket, req) => {
+    console.log('🔌 WebSocket client connected');
+    activityMonitor.logActivity('info', '🔌 New terminal client connected');
+    
+    // Register client with activity monitor
+    activityMonitor.registerClient(ws);
+    
+    // Extract user session if available (for authorized commands)
+    let userId: string | undefined;
     
     ws.on('message', async (message: Buffer) => {
       try {
         const data = JSON.parse(message.toString());
-        console.log('WebSocket message received:', data);
         
         if (data.type === 'subscribe') {
+          // Client subscribing to activity feed
           ws.send(JSON.stringify({
             type: 'subscribed',
-            message: 'Connected to real-time updates'
+            message: '✅ Connected to real-time activity monitor',
+            timestamp: new Date().toISOString(),
           }));
-        } else if (data.type === 'command') {
-          const cmd = data.command?.toLowerCase().split(' ')[0];
           
-          if (commandHandlers[cmd]) {
-            try {
-              const output = await commandHandlers[cmd]();
+          // Send welcome message
               ws.send(JSON.stringify({
-                type: 'command_output',
-                output: output
-              }));
-            } catch (error: any) {
+            type: 'activity',
+            level: 'info',
+            message: '🎉 Amoeba Operations Console Ready',
+            metadata: { tip: "Type 'help' for available commands" },
+            timestamp: new Date().toISOString(),
+          }));
+        } 
+        else if (data.type === 'auth') {
+          // Store user ID for authorized commands
+          userId = data.userId;
               ws.send(JSON.stringify({
-                type: 'command_error',
-                error: error.message || 'Command execution failed'
+            type: 'activity',
+            level: 'success',
+            message: `🔐 Authenticated as user ${userId?.substring(0, 8)}`,
+            timestamp: new Date().toISOString(),
               }));
             }
+        else if (data.type === 'command') {
+          const command = data.command?.trim();
+          
+          if (!command) return;
+          
+          // Log command execution
+          activityMonitor.logActivity('debug', `$ ${command}`);
+          
+          try {
+            // Execute command via command executor
+            const output = await commandExecutor.execute(command, userId);
+            
+            // Check for special commands
+            if (output === 'CLEAR_SCREEN') {
+              ws.send(JSON.stringify({
+                type: 'clear_screen',
+                timestamp: new Date().toISOString(),
+              }));
           } else {
+              ws.send(JSON.stringify({
+                type: 'command_output',
+                output: output,
+                timestamp: new Date().toISOString(),
+              }));
+            }
+          } catch (error: any) {
+            activityMonitor.logError(error, 'Command Execution');
             ws.send(JSON.stringify({
               type: 'command_error',
-              error: `Unknown command: ${cmd}. Type 'help' for available commands.`
+              error: error.message || 'Command execution failed',
+              timestamp: new Date().toISOString(),
             }));
           }
         }
       } catch (error) {
-        console.error('Error processing WebSocket message:', error);
+        console.error('❌ Error processing WebSocket message:', error);
         ws.send(JSON.stringify({
           type: 'command_error',
-          error: 'Failed to process message'
+          error: 'Failed to process message',
+          timestamp: new Date().toISOString(),
         }));
       }
     });
 
     ws.on('close', () => {
-      console.log('WebSocket client disconnected');
+      console.log('🔌 WebSocket client disconnected');
+      activityMonitor.logActivity('debug', '🔌 Terminal client disconnected');
     });
 
     ws.on('error', (error) => {
-      console.error('WebSocket error:', error);
+      console.error('❌ WebSocket error:', error);
+      activityMonitor.logError(error, 'WebSocket');
     });
   });
 

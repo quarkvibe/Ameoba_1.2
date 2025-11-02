@@ -10,6 +10,8 @@ const navigation = [
   { id: 'schedule', name: 'Schedule Manager', icon: 'fas fa-calendar-alt' },
   { id: 'queue', name: 'Queue Monitor', icon: 'fas fa-clock' },
   { id: 'logs', name: 'System Logs', icon: 'fas fa-file-alt' },
+  { id: 'license', name: 'License Management', icon: 'fas fa-id-card' },
+  { id: 'ollama', name: 'Ollama Setup', icon: 'fas fa-server' },
   { id: 'api-settings', name: 'API Settings', icon: 'fas fa-key' },
   { id: 'configuration', name: 'System Settings', icon: 'fas fa-cog' },
 ];

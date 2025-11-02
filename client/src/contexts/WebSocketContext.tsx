@@ -8,6 +8,8 @@ interface WebSocketMessage {
   level?: string;
   output?: string;
   error?: string;
+  timestamp?: string;
+  metadata?: any;
 }
 
 interface WebSocketContextType {

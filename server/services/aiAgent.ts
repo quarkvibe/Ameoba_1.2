@@ -1,6 +1,9 @@
 import OpenAI from "openai";
 import { storage } from '../storage';
 import type { AgentConversation } from '@shared/schema';
+import { commandExecutor } from './commandExecutor';
+import { contentGenerationService } from './contentGenerationService';
+import { activityMonitor } from './activityMonitor';
 
 // the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
 const openai = new OpenAI({ 
@@ -18,28 +21,74 @@ interface AgentResponse {
   message: string;
   actions?: AgentAction[];
   suggestions?: string[];
+  commandExecuted?: boolean;
+  commandResult?: string;
 }
 
 interface AgentAction {
   type: string;
   parameters: any;
   description: string;
+  command?: string; // Actual command to execute
 }
 
 export class AIAgent {
-  private systemPrompt = `You are Amoeba, an intelligent email operations agent. You help users manage their email campaigns, analyze performance, troubleshoot issues, and optimize email delivery.
+  private systemPrompt = `You are Amoeba AI, an intelligent operations agent with full control over the Amoeba content generation platform. You help users manage templates, generate content, schedule jobs, monitor system health, and optimize operations through natural language commands.
 
 Your capabilities include:
-- Analyzing email metrics and providing insights
-- Helping configure email providers and settings
-- Troubleshooting delivery issues
-- Optimizing send times and content
-- Managing campaigns and automation
-- Monitoring queue health and performance
+1. CONTENT MANAGEMENT:
+   - Create, list, and manage content templates
+   - Generate content on demand
+   - View generated content history
 
-Always respond in a helpful, professional manner. When suggesting actions, be specific and actionable. If you need more information to help, ask clarifying questions.
+2. SCHEDULING & AUTOMATION:
+   - Create and manage scheduled jobs (cron syntax)
+   - Run jobs immediately
+   - Monitor job execution status
 
-Response format: Return JSON with 'message' (your response), optional 'actions' array for specific tasks, and optional 'suggestions' array for recommendations.`;
+3. CREDENTIALS & CONFIGURATION:
+   - Help users add AI credentials (OpenAI, Anthropic, Cohere)
+   - Configure email delivery (SendGrid, AWS SES)
+   - Set up data sources and output channels
+
+4. SYSTEM MONITORING:
+   - Check system health and readiness
+   - View metrics and performance
+   - Monitor database and memory usage
+   - Review recent logs and activity
+
+5. COMMAND EXECUTION:
+   You can execute platform commands directly. Available commands:
+   - status, health - System health check
+   - jobs - List scheduled jobs
+   - templates - List content templates
+   - content - Recent generated content
+   - generate <id> - Generate content from template
+   - run <id> - Execute a scheduled job
+   - queue - Queue status
+   - db - Database info
+   - memory - Memory usage
+   - logs - Recent system logs
+   - metrics - System metrics
+
+IMPORTANT: When users ask you to DO something (not just explain), you should:
+1. Parse their intent into specific actions
+2. Return actions with the 'command' field containing the exact command to execute
+3. Explain what you're about to do
+
+Example user requests and your responses:
+- "Show me system status" → Execute command: "status"
+- "Create a blog post" → Ask for template details, then guide them
+- "Run my daily newsletter" → Find their newsletter job and execute command: "run <job-id>"
+- "What's in the queue?" → Execute command: "queue"
+
+Response format: Return JSON with:
+- 'message' (string): Your explanation/response to the user
+- 'actions' (array, optional): Specific actions with 'command' field for executable commands
+- 'suggestions' (array, optional): Helpful recommendations
+- 'needsMoreInfo' (boolean, optional): true if you need clarification
+
+Always be helpful, proactive, and execute commands when appropriate.`;
 
   async processMessage(
     userId: string,
@@ -47,6 +96,8 @@ Response format: Return JSON with 'message' (your response), optional 'actions' 
     context?: AgentContext
   ): Promise<AgentResponse> {
     try {
+      activityMonitor.logActivity('info', `🤖 AI Agent processing: "${message}"`);
+      
       const conversationHistory = await storage.getAgentConversations(userId, 5);
       
       const contextualPrompt = this.buildContextualPrompt(message, context, conversationHistory);
@@ -58,26 +109,55 @@ Response format: Return JSON with 'message' (your response), optional 'actions' 
           { role: "user", content: contextualPrompt }
         ],
         response_format: { type: "json_object" },
-        max_completion_tokens: 1000,
+        max_completion_tokens: 1500,
       });
 
       const agentResponse = JSON.parse(response.choices[0].message.content || '{}');
+      
+      // Execute commands if any actions contain command field
+      let commandExecuted = false;
+      let commandResult = '';
+      
+      if (agentResponse.actions && agentResponse.actions.length > 0) {
+        for (const action of agentResponse.actions) {
+          if (action.command) {
+            activityMonitor.logActivity('info', `🤖 AI Agent executing: ${action.command}`);
+            try {
+              commandResult = await commandExecutor.execute(action.command, userId);
+              commandExecuted = true;
+              activityMonitor.logActivity('success', `✅ AI Agent command completed: ${action.command}`);
+            } catch (cmdError: any) {
+              commandResult = `Command execution failed: ${cmdError.message}`;
+              activityMonitor.logError(cmdError, `AI Agent command: ${action.command}`);
+            }
+            break; // Execute only the first command for now
+          }
+        }
+      }
       
       // Store the conversation
       await storage.createAgentConversation({
         userId,
         message,
         response: agentResponse.message || 'I apologize, but I had trouble processing that request.',
-        context: { ...context, timestamp: new Date().toISOString() },
+        context: { 
+          ...context, 
+          timestamp: new Date().toISOString(),
+          commandExecuted,
+          commandResult: commandExecuted ? commandResult : undefined,
+        },
       });
 
       return {
         message: agentResponse.message || 'I apologize, but I had trouble processing that request.',
         actions: agentResponse.actions || [],
         suggestions: agentResponse.suggestions || [],
+        commandExecuted,
+        commandResult: commandExecuted ? commandResult : undefined,
       };
     } catch (error) {
       console.error('AI Agent error:', error);
+      activityMonitor.logError(error as Error, 'AI Agent');
       return {
         message: 'I apologize, but I encountered an error processing your request. Please try again.',
         actions: [],
@@ -213,6 +293,52 @@ Provide insights, identify issues, and suggest optimizations. Format as JSON wit
     } catch (error) {
       console.error('Optimization suggestions error:', error);
       return ["Unable to generate optimization suggestions at this time."];
+    }
+  }
+
+  /**
+   * Check if AI Agent is available and functional
+   */
+  async checkHealth(): Promise<{ available: boolean; model: string; error?: string }> {
+    try {
+      const apiKey = process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY_ENV_VAR;
+      
+      if (!apiKey) {
+        return {
+          available: false,
+          model: 'gpt-5',
+          error: 'OpenAI API key not configured',
+        };
+      }
+
+      // Quick test to verify API connectivity
+      const response = await openai.chat.completions.create({
+        model: "gpt-5",
+        messages: [
+          { role: "system", content: "You are a health check assistant." },
+          { role: "user", content: "Respond with OK" }
+        ],
+        max_completion_tokens: 10,
+      });
+
+      if (response.choices && response.choices.length > 0) {
+        return {
+          available: true,
+          model: 'gpt-5',
+        };
+      }
+
+      return {
+        available: false,
+        model: 'gpt-5',
+        error: 'Unexpected response from OpenAI API',
+      };
+    } catch (error: any) {
+      return {
+        available: false,
+        model: 'gpt-5',
+        error: error.message || 'Failed to connect to OpenAI API',
+      };
     }
   }
 }

@@ -1,0 +1,76 @@
+# Development files
+node_modules/
+.git/
+.gitignore
+*.log
+*.tar.gz
+
+# Build artifacts (we'll publish built files)
+.DS_Store
+*.swp
+*.swo
+*~
+
+# IDE files
+.vscode/
+.idea/
+*.sublime-*
+
+# Test files
+test/
+tests/
+__tests__/
+*.test.ts
+*.test.js
+*.spec.ts
+*.spec.js
+
+# Documentation that's not needed in package
+docs/
+attached_assets/
+ephemeris_data/
+scripts/
+
+# Markdown files (except README, LICENSE, CHANGELOG)
+*.md
+!README.md
+!LICENSE
+!CHANGELOG.md
+
+# Config files for development
+.env
+.env.*
+!.env.example
+*.config.ts
+!tailwind.config.ts
+!vite.config.ts
+!postcss.config.js
+!tsconfig.json
+!tsconfig.cli.json
+
+# Source files (publish only built files)
+client/src/
+server/
+!server/public/
+
+# Replit-specific
+replit.md
+.replit
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+.circleci/
+
+# Coverage
+coverage/
+.nyc_output/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+
+

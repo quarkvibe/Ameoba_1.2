@@ -206,7 +206,7 @@ export class IntegrationService {
     
     const totalRequests = logs.length;
     const avgResponseTime = logs.reduce((sum, log) => sum + (log.responseTime || 0), 0) / totalRequests || 0;
-    const errors = logs.filter(log => log.statusCode >= 400 || !!log.errorMessage);
+    const errors = logs.filter(log => (log.statusCode && log.statusCode >= 400) || !!log.errorMessage);
     const errorRate = errors.length / totalRequests || 0;
     
     // Count endpoint usage

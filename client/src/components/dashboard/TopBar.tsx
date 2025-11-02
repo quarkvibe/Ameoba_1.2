@@ -1,5 +1,6 @@
 import AgentChat from "./AgentChat";
 import ThemeToggle from "./ThemeToggle";
+import SystemStatusIndicator from "./SystemStatusIndicator";
 import { Button } from "@/components/ui/button";
 
 interface TopBarProps {
@@ -32,6 +33,9 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
 
         {/* Quick Actions */}
         <div className="flex items-center gap-1 sm:gap-2">
+          {/* System Status Indicator - Traffic Light System */}
+          <SystemStatusIndicator />
+          
           {/* Theme Toggle - Always visible */}
           <ThemeToggle />
         </div>

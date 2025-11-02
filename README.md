@@ -44,12 +44,14 @@ Amoeba is not just a tool - it's an **enterprise AI communication platform** tha
 - **Fast**: 2-5 second responses
 - **No App Required**: Works on any phone
 
-### 🎨 UI-First Configuration (NEW!)
-- **Zero Terminal Access**: Everything configurable from beautiful dashboard
-- **Credentials Manager**: Add AI, email, phone credentials via forms
-- **Environment Manager**: Edit .env file from UI
-- **Agent Configurator**: Edit AI system prompts, enable/disable tools
-- **SaaS-Level UX**: Professional polish, anyone can use
+### 🎨 Dual Interface: UI + CLI (Both First-Class!)
+- **Beautiful Dashboard**: Visual configuration, real-time monitoring, anyone can use
+- **Powerful CLI**: 40+ commands, JSON output, scriptable automation, embeddable
+- **Your Choice**: Use UI, CLI, or both - same features, different interface
+- **Credentials Manager**: Add via UI forms OR CLI commands
+- **Environment Manager**: Edit via dashboard OR `amoeba env set`
+- **Agent Configurator**: Visual editor OR CLI configuration
+- **API Access**: Programmatic control for custom integrations
 
 ### 🔑 Complete BYOK (Enhanced!)
 - **AI Providers**: OpenAI, Anthropic, Cohere, Ollama
@@ -77,11 +79,14 @@ Amoeba is not just a tool - it's an **enterprise AI communication platform** tha
 - **Activity Feed**: Real-time event streaming
 - **Performance Metrics**: Tokens, costs, execution times
 
-### 🖥️ Professional CLI
-- **27+ Commands**: Including "test", "diagnostics", "logs"
-- **Interactive Prompts**: Guided configuration
-- **JSON Output**: Scriptable automation
-- **Batch Operations**: Bulk operations
+### 🖥️ Professional CLI (First-Class Interface!)
+- **40+ Commands**: Full feature parity with UI
+- **JSON Output**: Scriptable automation, CI/CD integration
+- **Embeddable**: Use Amoeba as a library in your apps
+- **Interactive Prompts**: Guided configuration when needed
+- **Batch Operations**: Bulk processing, shell scripting
+- **Headless Mode**: Run without UI (perfect for servers)
+- **Power User**: Everything configurable via terminal
 
 ---
 

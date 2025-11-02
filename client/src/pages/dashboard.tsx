@@ -32,6 +32,7 @@ import SMSCommands from "@/components/dashboard/SMSCommands";
 import SystemTesting from "@/components/dashboard/SystemTesting";
 import DeploymentGuide from "@/components/dashboard/DeploymentGuide";
 import DatabaseConfiguration from "@/components/dashboard/DatabaseConfiguration";
+import CodeModification from "@/components/dashboard/CodeModification";
 
 export default function Dashboard() {
   const { toast } = useToast();
@@ -146,6 +147,9 @@ export default function Dashboard() {
       case "database":
       case "db-config":
         return <DatabaseConfiguration />;
+      case "code-modification":
+      case "self-modify":
+        return <CodeModification />;
       case "license":
         return <LicenseManagement />;
       case "ollama":

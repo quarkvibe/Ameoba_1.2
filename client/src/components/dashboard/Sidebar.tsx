@@ -16,6 +16,7 @@ const navigation = [
   { id: 'testing', name: 'Testing & Logs', icon: 'fas fa-vial' },
   { id: 'deployment', name: 'Deployment', icon: 'fas fa-server' },
   { id: 'database', name: 'Database', icon: 'fas fa-database' },
+  { id: 'code-modification', name: 'AI Code Mod', icon: 'fas fa-dna' },
   { id: 'configuration', name: 'Environment', icon: 'fas fa-cog' },
   { id: 'license', name: 'License', icon: 'fas fa-id-card' },
   { id: 'ollama', name: 'Ollama Setup', icon: 'fas fa-server' },

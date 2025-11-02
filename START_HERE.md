@@ -31,10 +31,10 @@ You asked for a complete analysis and plan to improve Amoeba.
 **Solution:** Text messages + voice calls with TTS  
 **Impact:** Multi-channel communication platform
 
-### 4. UI-First Configuration
-**Problem:** Required terminal access for setup (developer-only)  
-**Solution:** Complete UI for credentials, environment, agent config  
-**Impact:** 20x market expansion (anyone can use!)
+### 4. Dual Interface: UI + CLI (Both First-Class!)
+**Problem:** Either too technical (CLI only) or not powerful enough (UI only)  
+**Solution:** Complete parity - UI for accessibility, CLI for power  
+**Impact:** Maximum market (non-technical users + developers + automation)
 
 ### 5. SMS Command Interface ⭐ GAME CHANGER
 **Problem:** Needed laptop to manage platform  

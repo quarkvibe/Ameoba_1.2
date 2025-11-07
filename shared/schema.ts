@@ -358,6 +358,62 @@ export const socialMediaCredentials = pgTable("social_media_credentials", {
   index("idx_social_creds_platform").on(table.platform),
 ]);
 
+// Authentication profiles (for web monitoring of authenticated sites)
+// SECURITY: All auth data MUST be encrypted at-rest
+export const authenticationProfiles = pgTable("authentication_profiles", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  name: varchar("name", { length: 200 }).notNull(), // "My eBay Account"
+  site: varchar("site", { length: 100 }).notNull(), // 'ebay', 'linkedin', 'generic'
+  authType: varchar("auth_type", { length: 50 }).notNull(), // 'cookies', 'token', 'basic', 'oauth'
+  // Auth data (ALL ENCRYPTED)
+  cookies: text("cookies"), // ENCRYPTED - Session cookies
+  authToken: text("auth_token"), // ENCRYPTED - Bearer token
+  username: varchar("username", { length: 255 }), // For basic auth (public)
+  password: text("password"), // ENCRYPTED - For basic auth
+  oauthAccessToken: text("oauth_access_token"), // ENCRYPTED - OAuth token
+  oauthRefreshToken: text("oauth_refresh_token"), // ENCRYPTED - OAuth refresh
+  expiresAt: timestamp("expires_at"), // Token expiry
+  autoRefresh: boolean("auto_refresh").default(true),
+  config: jsonb("config"), // Site-specific settings
+  isActive: boolean("is_active").default(true),
+  lastUsed: timestamp("last_used"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_auth_profiles_user").on(table.userId),
+  index("idx_auth_profiles_site").on(table.site),
+]);
+
+// Web monitoring tasks (continuous site monitoring)
+export const webMonitoringTasks = pgTable("web_monitoring_tasks", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  name: varchar("name", { length: 200 }).notNull(),
+  description: text("description"),
+  targetSite: varchar("target_site", { length: 50 }).notNull(), // 'ebay', 'shopgoodwill', etc.
+  url: text("url"), // For generic sites
+  searchTerms: jsonb("search_terms"), // Array of search terms
+  filters: jsonb("filters"), // Price ranges, categories, etc.
+  checkInterval: integer("check_interval").notNull(), // Minutes
+  continuous: boolean("continuous").default(true),
+  maxResults: integer("max_results").default(50),
+  requiresAuth: boolean("requires_auth").default(false),
+  authProfileId: uuid("auth_profile_id").references(() => authenticationProfiles.id, { onDelete: 'set null' }),
+  reportVia: jsonb("report_via").notNull(), // ['sms', 'email']
+  reportWhen: varchar("report_when", { length: 50 }).default('changes-only'),
+  reportFormat: varchar("report_format", { length: 50 }).default('summary'),
+  isActive: boolean("is_active").default(true),
+  lastChecked: timestamp("last_checked"),
+  lastResults: jsonb("last_results"),
+  consecutiveFailures: integer("consecutive_failures").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_monitor_tasks_user").on(table.userId),
+  index("idx_monitor_tasks_active").on(table.isActive),
+]);
+
 // Workflows - AI content generation configurations
 export const workflows = pgTable("workflows", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),

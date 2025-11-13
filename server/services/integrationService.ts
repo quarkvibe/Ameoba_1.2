@@ -120,7 +120,7 @@ export class IntegrationService {
           'Content-Type': 'application/json',
           'X-Amoeba-Signature': `sha256=${signature}`,
           'X-Amoeba-Event': event,
-          'User-Agent': 'Amoeba-Horoscope-Service/1.0',
+          'User-Agent': 'Amoeba-content-Service/1.0',
         },
         body: payloadString,
       });

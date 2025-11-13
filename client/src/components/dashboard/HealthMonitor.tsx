@@ -45,7 +45,7 @@ export default function HealthMonitor() {
         overall: 'healthy' as const,
         services: [
           {
-            service: 'Horoscope Service',
+            service: 'content Service',
             status: 'healthy' as const,
             uptime: 99.97,
             responseTime: 145,

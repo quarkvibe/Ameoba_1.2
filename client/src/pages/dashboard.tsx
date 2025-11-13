@@ -19,7 +19,6 @@ import OutputConfiguration from "@/components/dashboard/OutputConfiguration";
 import ScheduleManager from "@/components/dashboard/ScheduleManager";
 import ApiSettings from "@/components/dashboard/ApiSettings";
 import Terminal from "@/components/dashboard/Terminal";
-// HoroscopeViewer removed - generic content viewer will replace it
 import { useWebSocketContext } from "@/contexts/WebSocketContext";
 import SystemHealthDashboard from "@/components/dashboard/SystemHealthDashboard";
 import LicenseManagement from "@/components/dashboard/LicenseManagement";
@@ -70,9 +69,6 @@ export default function Dashboard() {
         );
       case "health":
         return <SystemHealthDashboard />;
-      case "horoscopes":
-        // Horoscope viewer removed - will be replaced with generic content viewer
-        return <div className="p-8 text-center text-muted-foreground">Horoscope viewer coming soon as generic content viewer...</div>;
       case "generation":
         return <ContentGeneration />;
       case "content-config":
@@ -91,7 +87,7 @@ export default function Dashboard() {
               Astronomy Data
             </h2>
             <p className="text-muted-foreground">
-              Real-time astronomical data and planetary positions for horoscope generation.
+              Real-time astronomical data and planetary positions.
             </p>
             {/* Future astronomy data components will go here */}
             <div className="text-center py-12 text-muted-foreground">
@@ -108,7 +104,7 @@ export default function Dashboard() {
               Queue Monitor
             </h2>
             <p className="text-muted-foreground">
-              Monitor and manage the horoscope generation queue and background jobs.
+              Monitor and manage the content generation queue and background jobs.
             </p>
             <QueueStatus />
           </div>

@@ -242,7 +242,7 @@ export default function ScheduleManager() {
                       <Input
                         id="name"
                         name="name"
-                        placeholder="e.g., Daily Horoscope Generation"
+                        placeholder="e.g., Daily content Generation"
                         defaultValue={editingJob?.name}
                         required
                         data-testid="input-job-name"

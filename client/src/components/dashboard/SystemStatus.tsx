@@ -6,7 +6,7 @@ interface SystemStatus {
   database: { status: string; latency?: string };
   queue: { status: string; depth?: number };
   astronomyService: { status: string; engine?: string };
-  horoscopeService: { status: string; lastGeneration?: string };
+  contentService: { status: string; lastGeneration?: string };
   nextJob?: { name: string; time: string };
 }
 
@@ -21,8 +21,8 @@ export default function SystemStatus() {
     database: { status: "connected", latency: "12ms" },
     queue: { status: "active", depth: 0 },
     astronomyService: { status: "active", engine: "Swiss Ephemeris" },
-    horoscopeService: { status: "active", lastGeneration: new Date().toISOString() },
-    nextJob: { name: "Daily Horoscope Generation", time: "12:00 AM" },
+    contentService: { status: "active", lastGeneration: new Date().toISOString() },
+    nextJob: { name: "Daily content Generation", time: "12:00 AM" },
   };
 
   const getStatusIndicator = (status: string) => {
@@ -84,15 +84,15 @@ export default function SystemStatus() {
         
         <div className="space-y-4">
           
-          {/* Horoscope Service */}
+          {/* content Service */}
           <div>
-            <p className="text-sm text-muted-foreground mb-2">Horoscope Service</p>
+            <p className="text-sm text-muted-foreground mb-2">content Service</p>
             <div className="flex items-center justify-between">
               <span className="text-sm text-foreground">Generator</span>
               <div className="flex items-center gap-2">
-                <div className={`w-2 h-2 rounded-full animate-pulse ${getStatusIndicator(systemStatus.horoscopeService.status)}`}></div>
+                <div className={`w-2 h-2 rounded-full animate-pulse ${getStatusIndicator(systemStatus.contentService.status)}`}></div>
                 <span className="text-xs text-accent">
-                  {getStatusText(systemStatus.horoscopeService.status)}
+                  {getStatusText(systemStatus.contentService.status)}
                 </span>
               </div>
             </div>

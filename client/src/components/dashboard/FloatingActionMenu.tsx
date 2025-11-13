@@ -8,16 +8,16 @@ export default function FloatingActionMenu() {
   const [isOpen, setIsOpen] = useState(false);
   const { toast } = useToast();
 
-  const generateHoroscopesMutation = useMutation({
+  const generatecontentsMutation = useMutation({
     mutationFn: async () => {
-      return await apiRequest("POST", "/api/cron/trigger-horoscopes", {
+      return await apiRequest("POST", "/api/cron/trigger-contents", {
         date: new Date().toISOString().split('T')[0]
       });
     },
     onSuccess: () => {
       toast({
         title: "Success",
-        description: "Manual horoscope generation triggered successfully!",
+        description: "Manual content generation triggered successfully!",
       });
       setIsOpen(false);
     },
@@ -34,7 +34,7 @@ export default function FloatingActionMenu() {
   const showSystemHealth = () => {
     toast({
       title: "System Health Check",
-      description: "All horoscope services are operational. Database connected, astronomy engine active, queue processing normally.",
+      description: "All content services are operational. Database connected, astronomy engine active, queue processing normally.",
       duration: 6000,
     });
     setIsOpen(false);
@@ -47,10 +47,10 @@ export default function FloatingActionMenu() {
   const actionItems = [
     {
       icon: "fas fa-star",
-      title: "Generate Horoscopes",
+      title: "Generate contents",
       color: "bg-accent text-accent-foreground",
-      action: () => generateHoroscopesMutation.mutate(),
-      disabled: generateHoroscopesMutation.isPending,
+      action: () => generatecontentsMutation.mutate(),
+      disabled: generatecontentsMutation.isPending,
     },
     {
       icon: "fas fa-heartbeat",

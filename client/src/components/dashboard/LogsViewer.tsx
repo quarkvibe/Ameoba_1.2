@@ -37,8 +37,8 @@ export default function LogsViewer() {
     {
       timestamp: new Date(Date.now() - 1000 * 60).toISOString(),
       level: 'info',
-      service: 'horoscope-service',
-      message: 'Successfully generated horoscope for Leo',
+      service: 'content-service',
+      message: 'Successfully generated content for Leo',
       details: { zodiacSign: 'leo', duration: '2.3s' },
     },
     {
@@ -59,7 +59,7 @@ export default function LogsViewer() {
       timestamp: new Date(Date.now() - 1000 * 300).toISOString(),
       level: 'info',
       service: 'cron-service',
-      message: 'Daily horoscope generation scheduled',
+      message: 'Daily content generation scheduled',
       details: { nextRun: '2025-09-19T00:00:00.000Z' },
     },
     {

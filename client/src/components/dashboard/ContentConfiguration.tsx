@@ -195,7 +195,7 @@ export default function ContentConfiguration() {
                           <Input
                             id="name"
                             name="name"
-                            placeholder="e.g., Daily Horoscope"
+                            placeholder="e.g., Daily content"
                             defaultValue={editingTemplate?.name}
                             required
                             data-testid="input-template-name"

@@ -126,7 +126,7 @@ export default function LiveActivityFeed() {
               <i className="fas fa-star text-muted-foreground text-2xl mb-3"></i>
               <p className="text-muted-foreground">No recent activity</p>
               <p className="text-xs text-muted-foreground mt-1">
-                Activity will appear here as horoscopes are generated
+                Activity will appear here as contents are generated
               </p>
             </div>
           )}

@@ -3,7 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface DashboardMetrics {
-  horoscopesGenerated: number;
+  contentsGenerated: number;
   astronomyAccuracy: string;
   activeUsers: number;
   queueDepth: number;
@@ -35,8 +35,8 @@ export default function MetricsGrid() {
 
   const metricCards = [
     {
-      title: "Horoscopes Today",
-      value: metrics?.horoscopesGenerated?.toLocaleString() || "0",
+      title: "contents Today",
+      value: metrics?.contentsGenerated?.toLocaleString() || "0",
       change: metrics?.zodiacSignsComplete ? `${metrics.zodiacSignsComplete}/12 signs` : "0/12 signs",
       changeType: "increase",
       icon: "fas fa-star",

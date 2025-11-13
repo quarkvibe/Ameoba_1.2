@@ -40,15 +40,15 @@ interface CreateApiKeyResponse {
 }
 
 const AVAILABLE_PERMISSIONS = [
-  { id: 'read:horoscopes', label: 'Read Horoscopes', description: 'Access daily horoscope data' },
-  { id: 'read:bulk', label: 'Bulk Export', description: 'Export horoscope data in bulk' },
+  { id: 'read:content', label: 'Read Content', description: 'Access generated content data' },
+  { id: 'read:bulk', label: 'Bulk Export', description: 'Export content data in bulk' },
   { id: 'read:analytics', label: 'Analytics', description: 'View integration analytics' },
 ];
 
 export default function ApiSettings() {
   const { toast } = useToast();
   const [newKeyName, setNewKeyName] = useState("");
-  const [selectedPermissions, setSelectedPermissions] = useState<string[]>(['read:horoscopes']);
+  const [selectedPermissions, setSelectedPermissions] = useState<string[]>(['read:content']);
   const [showNewKeyDialog, setShowNewKeyDialog] = useState(false);
   const [generatedKey, setGeneratedKey] = useState<string | null>(null);
   const [showGeneratedKey, setShowGeneratedKey] = useState(false);
@@ -69,7 +69,7 @@ export default function ApiSettings() {
       setShowGeneratedKey(true);
       setShowNewKeyDialog(false);
       setNewKeyName("");
-      setSelectedPermissions(['read:horoscopes']);
+      setSelectedPermissions(['read:content']);
       queryClient.invalidateQueries({ queryKey: ['/api/api-keys'] });
       toast({
         title: "API Key Generated",
@@ -174,7 +174,7 @@ export default function ApiSettings() {
             API Settings
           </h2>
           <p className="text-muted-foreground mt-1">
-            Manage API keys for accessing horoscope data programmatically
+            Manage API keys for accessing Amoeba services programmatically
           </p>
         </div>
 
@@ -189,7 +189,7 @@ export default function ApiSettings() {
             <DialogHeader>
               <DialogTitle>Generate New API Key</DialogTitle>
               <DialogDescription>
-                Create a new API key to access the horoscope service. Choose the appropriate permissions for your use case.
+                Create a new API key to access Amoeba services. Choose the appropriate permissions for your use case.
               </DialogDescription>
             </DialogHeader>
             
@@ -318,7 +318,7 @@ export default function ApiSettings() {
               <Key className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
               <p className="text-muted-foreground">No API keys found</p>
               <p className="text-sm text-muted-foreground mt-1">
-                Generate your first API key to start accessing the horoscope service
+                Generate your first API key to start accessing Amoeba services
               </p>
             </CardContent>
           </Card>
@@ -418,7 +418,7 @@ export default function ApiSettings() {
         <CardHeader>
           <CardTitle>API Documentation</CardTitle>
           <CardDescription>
-            How to use your API keys to access horoscope data
+            How to use your API keys to access Amoeba services
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -438,12 +438,16 @@ export default function ApiSettings() {
             <h4 className="font-medium mb-2">Available Endpoints</h4>
             <div className="space-y-3 text-sm">
               <div>
-                <code className="text-primary">GET /api/horoscopes/today</code>
-                <p className="text-muted-foreground mt-1">Get all zodiac sign horoscopes for today</p>
+                <code className="text-primary">GET /api/content</code>
+                <p className="text-muted-foreground mt-1">List all generated content</p>
               </div>
               <div>
-                <code className="text-primary">GET /api/horoscopes/{"{sign}"}</code>
-                <p className="text-muted-foreground mt-1">Get horoscope for a specific zodiac sign (aries, taurus, gemini, etc.)</p>
+                <code className="text-primary">GET /api/content/{"{id}"}</code>
+                <p className="text-muted-foreground mt-1">Get specific generated content by ID</p>
+              </div>
+              <div>
+                <code className="text-primary">POST /api/content/generate</code>
+                <p className="text-muted-foreground mt-1">Generate new content from template</p>
               </div>
             </div>
           </div>

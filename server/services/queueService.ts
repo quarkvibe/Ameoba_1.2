@@ -99,10 +99,10 @@ export class QueueService {
       case 'cleanup':
         await this.processCleanupJob(job);
         break;
-      case 'horoscope_generation':
-        await this.processHoroscopeGenerationJob(job);
+      case 'content_generation':
+        await this.processcontentGenerationJob(job);
         break;
-      case 'personalized_horoscope_emails':
+      case 'personalized_content_emails':
         await this.processPersonalizedEmailJob(job);
         break;
       default:
@@ -251,10 +251,10 @@ export class QueueService {
     }
   }
 
-  private async processHoroscopeGenerationJob(job: QueueJob): Promise<void> {
-    // Horoscope-specific job processing removed
+  private async processcontentGenerationJob(job: QueueJob): Promise<void> {
+    // content-specific job processing removed
     // Generic content generation will be handled by contentGenerationService
-    console.log('Horoscope generation job - skipping (generic content service not yet implemented)');
+    console.log('content generation job - skipping (generic content service not yet implemented)');
   }
 
   private async processPersonalizedEmailJob(job: QueueJob): Promise<void> {
